@@ -27,8 +27,6 @@
         <module>yudao-module-iot</module>
         <module>yudao-module-mes</module>
         <module>yudao-module-ai</module>
-        <module>yudao-module-music</module>
-        <module>yudao-module-auth</module>
     </modules>
 
     <name>${project.artifactId}</name>

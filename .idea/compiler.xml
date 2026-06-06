@@ -41,11 +41,9 @@
         <module name="yudao-module-trade-api" />
         <module name="yudao-spring-boot-starter-env" />
         <module name="yudao-module-report-server" />
-        <module name="yudao-module-auth-server" />
         <module name="yudao-module-system-server" />
         <module name="yudao-spring-boot-starter-rpc" />
         <module name="yudao-module-infra-server" />
-        <module name="yudao-module-music-api" />
         <module name="yudao-server" />
         <module name="yudao-module-ai-server" />
         <module name="yudao-module-mp-api" />
@@ -58,7 +56,6 @@
         <module name="yudao-module-erp-api" />
         <module name="yudao-module-promotion-api" />
         <module name="yudao-module-promotion-server" />
-        <module name="yudao-module-music-server" />
         <module name="yudao-module-ai-api" />
         <module name="yudao-spring-boot-starter-biz-data-permission" />
         <module name="yudao-spring-boot-starter-security" />
@@ -74,9 +71,16 @@
         <module name="yudao-module-product-server" />
         <module name="yudao-module-mp-server" />
         <module name="yudao-module-system-api" />
-        <module name="yudao-module-auth-api" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="yudao-module-auth" target="17" />
+      <module name="yudao-module-auth-api" target="17" />
+      <module name="yudao-module-auth-server" target="17" />
+      <module name="yudao-module-music" target="17" />
+      <module name="yudao-module-music-api" target="17" />
+      <module name="yudao-module-music-server" target="17" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
