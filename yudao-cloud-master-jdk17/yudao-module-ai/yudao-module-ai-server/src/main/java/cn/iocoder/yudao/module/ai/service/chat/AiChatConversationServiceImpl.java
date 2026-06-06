@@ -14,12 +14,14 @@ import cn.iocoder.yudao.module.ai.dal.dataobject.chat.AiChatConversationDO;
 import cn.iocoder.yudao.module.ai.dal.dataobject.model.AiModelDO;
 import cn.iocoder.yudao.module.ai.dal.dataobject.model.AiChatRoleDO;
 import cn.iocoder.yudao.module.ai.dal.mysql.chat.AiChatConversationMapper;
+import cn.iocoder.yudao.module.ai.dal.mysql.chat.AiChatMessageMapper;
 import cn.iocoder.yudao.module.ai.service.knowledge.AiKnowledgeService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.service.model.AiChatRoleService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
 import java.time.LocalDateTime;
@@ -43,6 +45,8 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
 
     @Resource
     private AiChatConversationMapper chatConversationMapper;
+    @Resource
+    private AiChatMessageMapper chatMessageMapper;
 
     @Resource
     private AiModelService modalService;
@@ -168,6 +172,41 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
     @Override
     public PageResult<AiChatConversationDO> getChatConversationPage(AiChatConversationPageReqVO pageReqVO) {
         return chatConversationMapper.selectChatConversationPage(pageReqVO);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void batchDeleteConversation(List<Long> ids, Long userId) {
+        if (CollUtil.isEmpty(ids)) {
+            return;
+        }
+        for (Long id : ids) {
+            AiChatConversationDO conversation = chatConversationMapper.selectById(id);
+            if (conversation == null || ObjUtil.notEqual(conversation.getUserId(), userId)) {
+                continue;
+            }
+            chatConversationMapper.deleteById(id);
+            // 同时删除关联的消息
+            chatMessageMapper.deleteByConversationId(id);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void clearConversationHistory(Long userId) {
+        List<AiChatConversationDO> conversations = chatConversationMapper.selectListByUserId(userId);
+        if (CollUtil.isEmpty(conversations)) {
+            return;
+        }
+        List<Long> conversationIds = convertList(conversations, AiChatConversationDO::getId);
+        chatConversationMapper.deleteByIds(conversationIds);
+        // 删除所有消息
+        chatMessageMapper.deleteByConversationIds(conversationIds);
+    }
+
+    @Override
+    public void updateChatConversationTitle(Long id, String title) {
+        chatConversationMapper.updateById(new AiChatConversationDO().setId(id).setTitle(title));
     }
 
 }

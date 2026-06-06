@@ -4,11 +4,16 @@ import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
 import com.baomidou.mybatisplus.annotation.KeySequence;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
+import lombok.*;
 
 @TableName(value = "ai_student_profile")
 @KeySequence("ai_student_profile_seq")
 @Data
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class AiStudentProfileDO extends TenantBaseDO {
 
     @TableId
@@ -27,5 +32,6 @@ public class AiStudentProfileDO extends TenantBaseDO {
     private String studyTimePreference;
     private String status;
     private String profileJson;
+    private String conversationHistory;
 
 }

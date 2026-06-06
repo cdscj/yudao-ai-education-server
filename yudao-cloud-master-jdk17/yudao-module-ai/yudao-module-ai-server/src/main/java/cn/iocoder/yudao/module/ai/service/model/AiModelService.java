@@ -101,6 +101,11 @@ public interface AiModelService {
     ChatModel getChatModel(Long id);
 
     /**
+     * 获得指定类型的所有启用模型列表（按 sort 排序），model + apiKey 已校验
+     */
+    List<AiModelDO> getEnabledModels(Integer type);
+
+    /**
      * 获得 ImageModel 对象
      *
      * @param id 编号

@@ -87,4 +87,27 @@ public interface AiChatConversationService {
      */
     PageResult<AiChatConversationDO> getChatConversationPage(AiChatConversationPageReqVO pageReqVO);
 
+    /**
+     * 批量删除对话
+     *
+     * @param ids 对话编号列表
+     * @param userId 用户编号
+     */
+    void batchDeleteConversation(List<Long> ids, Long userId);
+
+    /**
+     * 清空对话历史
+     *
+     * @param userId 用户编号
+     */
+    void clearConversationHistory(Long userId);
+
+    /**
+     * 更新对话标题
+     *
+     * @param id 对话编号
+     * @param title 新标题
+     */
+    void updateChatConversationTitle(Long id, String title);
+
 }

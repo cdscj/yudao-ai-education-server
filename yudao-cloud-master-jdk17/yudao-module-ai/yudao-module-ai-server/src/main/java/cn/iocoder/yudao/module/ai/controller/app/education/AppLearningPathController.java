@@ -8,6 +8,7 @@ import cn.iocoder.yudao.module.ai.controller.admin.education.vo.LearningPathPage
 import cn.iocoder.yudao.module.ai.controller.app.education.vo.AppLearningPathRespVO;
 import cn.iocoder.yudao.module.ai.service.education.AiLearningPathService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
@@ -36,5 +37,12 @@ public class AppLearningPathController {
     @Operation(summary = "获得路径分页")
     public CommonResult<PageResult<AppLearningPathRespVO>> getPathPage(@Valid LearningPathPageReqVO reqVO) {
         return success(BeanUtils.toBean(learningPathService.getPathPage(reqVO), AppLearningPathRespVO.class));
+    }
+
+    @GetMapping("/get")
+    @Operation(summary = "获取路径详情")
+    @Parameter(name = "id", required = true)
+    public CommonResult<AppLearningPathRespVO> getPath(@RequestParam("id") Long id) {
+        return success(BeanUtils.toBean(learningPathService.getPath(id), AppLearningPathRespVO.class));
     }
 }

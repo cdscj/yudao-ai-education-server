@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.service.education;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
@@ -13,6 +14,7 @@ import cn.iocoder.yudao.module.ai.dal.mysql.education.AiLearningEvaluationMapper
 import cn.iocoder.yudao.module.ai.dal.mysql.education.AiLearningResourceMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
+import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
@@ -21,7 +23,6 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -43,11 +44,13 @@ public class AiLearningEvaluationServiceImpl implements AiLearningEvaluationServ
     @Resource
     private AiLearningResourceMapper learningResourceMapper;
     @Resource
-    private AiStudentProfileServiceImpl studentProfileService;
+    private AiStudentProfileService studentProfileService;
     @Resource
-    private AiModelService modalService;
+    private AiModelService modelService;
+    @Resource
+    private AiSystemConfigService configService;
 
-    private static final String EVALUATION_SYSTEM_PROMPT = """
+    private static final String DEFAULT_EVALUATION_PROMPT = """
             你是一位学习效果评估专家。根据学生的学习数据（画像、已完成资源、练习记录），进行多维度量化评估。
             
             评估维度包括：
@@ -71,8 +74,11 @@ public class AiLearningEvaluationServiceImpl implements AiLearningEvaluationServ
 
     @Override
     public Flux<CommonResult<String>> generateEvaluation(Long userId) {
-        AiModelDO model = modalService.getRequiredDefaultModel(AiModelTypeEnum.CHAT.getType());
-        ChatModel chatModel = modalService.getChatModel(model.getId());
+        List<AiModelDO> models = modelService.getEnabledModels(AiModelTypeEnum.CHAT.getType());
+        if (CollUtil.isEmpty(models)) {
+            log.error("[generateEvaluation][userId({}) 无可用模型]", userId);
+            return Flux.just(error(MODEL_DEFAULT_NOT_EXISTS));
+        }
 
         AiStudentProfileDO profile = studentProfileService.getProfileByUserId(userId);
         List<AiLearningResourceDO> resources = learningResourceMapper.selectListByUserId(userId);
@@ -83,31 +89,51 @@ public class AiLearningEvaluationServiceImpl implements AiLearningEvaluationServ
         resources.forEach(r -> sb.append("- ").append(r.getTitle()).append(" [").append(r.getResourceType()).append("] 状态：").append(r.getStatus()).append("\n"));
 
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(EVALUATION_SYSTEM_PROMPT));
+        String evalPrompt = configService.getConfigValue("edu.evaluation.prompt", DEFAULT_EVALUATION_PROMPT);
+        messages.add(new SystemMessage(evalPrompt));
         messages.add(new UserMessage(sb.toString()));
 
-        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-        ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                model.getTemperature(), model.getMaxTokens());
-        Prompt prompt = new Prompt(messages, options);
-        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
+        Flux<CommonResult<String>> result = null;
+        for (int i = models.size() - 1; i >= 0; i--) {
+            AiModelDO model = models.get(i);
+            ChatModel chatModel = modelService.getChatModel(model.getId());
+            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
+            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
+                    model.getTemperature(), model.getMaxTokens());
+            Prompt prompt = new Prompt(messages, options);
 
-        StringBuffer contentBuffer = new StringBuffer();
-        return streamResponse.map(chunk -> {
-            String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-            contentBuffer.append(newContent);
-            return success(newContent);
-        }).doOnComplete(() -> {
-            TenantUtils.executeIgnore(() -> {
-                AiLearningEvaluationDO eval = new AiLearningEvaluationDO();
-                eval.setUserId(userId).setEvaluationType("COMPREHENSIVE")
-                        .setProfileId(profile != null ? profile.getId() : null)
-                        .setEvaluation(contentBuffer.toString());
-                evaluationMapper.insert(eval);
+            StringBuffer contentBuffer = new StringBuffer();
+            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
+                contentBuffer.append(newContent);
+                return success(newContent);
+            }).doOnComplete(() -> {
+                TenantUtils.executeIgnore(() -> {
+                    AiLearningEvaluationDO eval = new AiLearningEvaluationDO();
+                    eval.setUserId(userId).setEvaluationType("COMPREHENSIVE")
+                            .setProfileId(profile != null ? profile.getId() : null)
+                            .setEvaluation(contentBuffer.toString());
+                    evaluationMapper.insert(eval);
+                });
+            }).doOnError(throwable -> {
+                log.error("[generateEvaluation][userId({}) 异常]", userId, throwable);
             });
-        }).doOnError(throwable -> {
-            log.error("[generateEvaluation][userId({}) 异常]", userId, throwable);
-        }).onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)));
+
+            if (result == null) {
+                result = stream;
+            } else {
+                Flux<CommonResult<String>> current = stream;
+                Flux<CommonResult<String>> next = result;
+                result = current.onErrorResume(e -> {
+                    log.warn("[generateEvaluation][模型({}) 失败，尝试下一个]", model.getName(), e);
+                    return next;
+                });
+            }
+        }
+        return result != null ? result.onErrorResume(error -> {
+            log.error("[generateEvaluation][userId({}) 所有模型均失败]", userId, error);
+            return Flux.just(error(EDUCATION_STREAM_ERROR));
+        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
     }
 
     @Override

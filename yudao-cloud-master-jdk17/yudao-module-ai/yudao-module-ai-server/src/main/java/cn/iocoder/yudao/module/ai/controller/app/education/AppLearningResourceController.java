@@ -35,8 +35,9 @@ public class AppLearningResourceController {
     }
 
     @GetMapping("/page")
-    @Operation(summary = "获得资源分页")
+    @Operation(summary = "获得我的资源分页")
     public CommonResult<PageResult<AppLearningResourceRespVO>> getResourcePage(@Valid LearningResourcePageReqVO reqVO) {
+        reqVO.setUserId(getLoginUserId());
         return success(BeanUtils.toBean(learningResourceService.getResourcePage(reqVO), AppLearningResourceRespVO.class));
     }
 

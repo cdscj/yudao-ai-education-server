@@ -10,7 +10,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -20,6 +22,7 @@ import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUti
 @Tag(name = "管理后台 - 学生画像")
 @RestController
 @RequestMapping("/ai/education/profile")
+@Validated
 public class AiStudentProfileController {
 
     @Resource
@@ -27,6 +30,7 @@ public class AiStudentProfileController {
 
     @GetMapping("/get")
     @Operation(summary = "获取当前用户画像")
+    @PreAuthorize("@ss.hasPermission('ai:student-profile:query')")
     public CommonResult<StudentProfileRespVO> getProfile() {
         AiStudentProfileDO profile = studentProfileService.getProfileByUserId(getLoginUserId());
         return success(BeanUtils.toBean(profile, StudentProfileRespVO.class));
@@ -34,6 +38,7 @@ public class AiStudentProfileController {
 
     @PostMapping(value = "/chat-build", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "对话式构建画像（流式）")
+    @PreAuthorize("@ss.hasPermission('ai:student-profile:query')")
     public Flux<CommonResult<String>> chatBuildProfile(@RequestBody @Valid StudentProfileChatReqVO chatReqVO) {
         return studentProfileService.chatBuildProfile(chatReqVO, getLoginUserId());
     }

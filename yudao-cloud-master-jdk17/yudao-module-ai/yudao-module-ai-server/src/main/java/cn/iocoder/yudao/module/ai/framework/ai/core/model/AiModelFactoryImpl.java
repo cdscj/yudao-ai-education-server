@@ -151,7 +151,7 @@ public class AiModelFactoryImpl implements AiModelFactory {
                 case YI_YAN:
                     return buildYiYanChatModel(apiKey);
                 case DEEP_SEEK:
-                    return buildDeepSeekChatModel(apiKey);
+                    return buildDeepSeekChatModel(apiKey, url);
                 case DOU_BAO:
                     return buildDouBaoChatModel(apiKey);
                 case HUN_YUAN:
@@ -396,12 +396,16 @@ public class AiModelFactoryImpl implements AiModelFactory {
     /**
      * 可参考 {@link DeepSeekChatAutoConfiguration} 的 deepSeekChatModel 方法
      */
-    private static DeepSeekChatModel buildDeepSeekChatModel(String apiKey) {
-        DeepSeekApi deepSeekApi = DeepSeekApi.builder().apiKey(apiKey).build();
+    private static DeepSeekChatModel buildDeepSeekChatModel(String apiKey, String url) {
+        DeepSeekApi.Builder deepSeekApiBuilder = DeepSeekApi.builder()
+                .apiKey(apiKey);
+        if (StrUtil.isNotEmpty(url)) {
+            deepSeekApiBuilder.baseUrl(url);
+        }
         DeepSeekChatOptions options = DeepSeekChatOptions.builder().model(DeepSeekApi.DEFAULT_CHAT_MODEL)
                 .temperature(0.7).build();
         return DeepSeekChatModel.builder()
-                .deepSeekApi(deepSeekApi)
+                .deepSeekApi(deepSeekApiBuilder.build())
                 .defaultOptions(options)
                 .toolCallingManager(getToolCallingManager())
                 .build();

@@ -22,7 +22,12 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.image.ImageModel;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.milvus.MilvusVectorStore;
+import org.springframework.ai.vectorstore.qdrant.QdrantVectorStore;
+import org.springframework.ai.vectorstore.redis.RedisVectorStore;
+
+import cn.iocoder.yudao.module.ai.framework.ai.config.YudaoAiProperties;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -52,6 +57,9 @@ public class AiModelServiceImpl implements AiModelService {
     @Resource
     private AiModelFactory modelFactory;
 
+    @Resource
+    private YudaoAiProperties yudaoAiProperties;
+
     @Override
     public Long createModel(AiModelSaveReqVO createReqVO) {
         // 1. 校验
@@ -65,7 +73,7 @@ public class AiModelServiceImpl implements AiModelService {
     }
 
     @Override
-    @CacheEvict(cacheNames = "ai:model", key = "#updateReqVO.id")
+    @CacheEvict(cacheNames = {"ai:model", "ai:model:enabled"}, allEntries = true)
     public void updateModel(AiModelSaveReqVO updateReqVO) {
         // 1. 校验
         validateModelExists(updateReqVO.getId());
@@ -78,7 +86,7 @@ public class AiModelServiceImpl implements AiModelService {
     }
 
     @Override
-    @CacheEvict(cacheNames = "ai:model", key = "#id")
+    @CacheEvict(cacheNames = {"ai:model", "ai:model:enabled"}, allEntries = true)
     public void deleteModel(Long id) {
         // 校验存在
         validateModelExists(id);
@@ -131,6 +139,12 @@ public class AiModelServiceImpl implements AiModelService {
     // ========== 与 Spring AI 集成 ==========
 
     @Override
+    @Cacheable(cacheNames = "ai:model:enabled", key = "#type", unless = "#result == null || #result.isEmpty()")
+    public List<AiModelDO> getEnabledModels(Integer type) {
+        return modelMapper.selectListByStatusAndType(CommonStatusEnum.ENABLE.getStatus(), type, null);
+    }
+
+    @Override
     public ChatModel getChatModel(Long id) {
         AiModelDO model = validateModel(id);
         AiApiKeyDO apiKey = apiKeyService.validateApiKey(model.getKeyId());
@@ -171,8 +185,33 @@ public class AiModelServiceImpl implements AiModelService {
         EmbeddingModel embeddingModel = modelFactory.getOrCreateEmbeddingModel(
                 platform, apiKey.getApiKey(), apiKey.getUrl(), model.getModel());
 
-        // 创建或获取 VectorStore 对象
-         return modelFactory.getOrCreateVectorStore(MilvusVectorStore.class, embeddingModel, metadataFields);
+        // 创建或获取 VectorStore 对象（根据配置动态选择类型）
+        Class<? extends VectorStore> vectorStoreType = resolveVectorStoreType();
+        return modelFactory.getOrCreateVectorStore(vectorStoreType, embeddingModel, metadataFields);
+    }
+
+    /**
+     * 根据配置解析向量存储类型
+     *
+     * 显式配置了 yudao.ai.vector-store → 直接返回对应 Class
+     * 未配置 → 默认使用 Simple（本地文件存储，零外部依赖）
+     */
+    private Class<? extends VectorStore> resolveVectorStoreType() {
+        String configured = yudaoAiProperties.getVectorStore();
+        if ("milvus".equalsIgnoreCase(configured)) {
+            return MilvusVectorStore.class;
+        }
+        if ("qdrant".equalsIgnoreCase(configured)) {
+            return QdrantVectorStore.class;
+        }
+        if ("redis".equalsIgnoreCase(configured)) {
+            return RedisVectorStore.class;
+        }
+        if ("simple".equalsIgnoreCase(configured)) {
+            return SimpleVectorStore.class;
+        }
+        // 未配置，默认使用 Simple 本地文件存储（零外部依赖，开箱即用）
+        return SimpleVectorStore.class;
     }
 
     // TODO @lesan：是不是返回 Llm 对象会好点哈？

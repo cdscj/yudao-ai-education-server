@@ -10,7 +10,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -20,6 +22,7 @@ import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUti
 @Tag(name = "管理后台 - 学习评估")
 @RestController
 @RequestMapping("/ai/education/evaluation")
+@Validated
 public class AiLearningEvaluationController {
 
     @Resource
@@ -27,12 +30,14 @@ public class AiLearningEvaluationController {
 
     @PostMapping(value = "/generate-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "生成学习评估（流式）")
+    @PreAuthorize("@ss.hasPermission('ai:learning-evaluation:query')")
     public Flux<CommonResult<String>> generateEvaluation() {
         return evaluationService.generateEvaluation(getLoginUserId());
     }
 
     @GetMapping("/page")
     @Operation(summary = "获得学习评估分页")
+    @PreAuthorize("@ss.hasPermission('ai:learning-evaluation:query')")
     public CommonResult<PageResult<EvaluationRespVO>> getEvaluationPage(@Valid EvaluationPageReqVO reqVO) {
         return success(BeanUtils.toBean(evaluationService.getEvaluationPage(reqVO), EvaluationRespVO.class));
     }

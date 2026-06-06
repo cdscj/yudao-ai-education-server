@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.service.education;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.util.object.BeanUtils;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.ai.dal.mysql.education.AiTutoringMessageMapper;
 import cn.iocoder.yudao.module.ai.dal.mysql.education.AiTutoringSessionMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
+import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
@@ -22,7 +24,6 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -45,23 +46,27 @@ public class AiTutoringServiceImpl implements AiTutoringService {
     @Resource
     private AiTutoringMessageMapper tutoringMessageMapper;
     @Resource
-    private AiModelService modalService;
+    private AiModelService modelService;
+    @Resource
+    private AiSystemConfigService configService;
 
-    private static final String TUTOR_SYSTEM_PROMPT = """
+    private static final String DEFAULT_TUTOR_PROMPT = """
             你是一位专业、耐心的高校课程辅导教师。你的职责包括：
             1. 解答学生关于计算机、人工智能、电子信息类课程的问题
             2. 提供多形式解答：文字详解、图解思路、代码示例等
             3. 引导学生自己思考，而不是直接给答案
             4. 根据学生问题难度，由浅入深讲解
             5. 使用Markdown格式输出，代码用代码块标注
-            
+
             回答风格：友好、鼓励、专业。适当使用emoji增加亲和力。
             """;
 
     @Override
     public Flux<CommonResult<String>> chat(TutoringChatReqVO reqVO, Long userId) {
-        AiModelDO model = modalService.getRequiredDefaultModel(AiModelTypeEnum.CHAT.getType());
-        ChatModel chatModel = modalService.getChatModel(model.getId());
+        List<AiModelDO> models = modelService.getEnabledModels(AiModelTypeEnum.CHAT.getType());
+        if (CollUtil.isEmpty(models)) {
+            return Flux.just(error(MODEL_DEFAULT_NOT_EXISTS));
+        }
 
         Long sessionId = reqVO.getSessionId();
         AiTutoringSessionDO session;
@@ -83,39 +88,57 @@ public class AiTutoringServiceImpl implements AiTutoringService {
         tutoringMessageMapper.insert(userMsg);
 
         List<AiTutoringMessageDO> history = tutoringMessageMapper.selectListBySessionId(sessionId);
+        // 限制最近 50 条历史消息，防止超出 token 限制
+        if (history.size() > 50) { history = history.subList(history.size() - 50, history.size()); }
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(TUTOR_SYSTEM_PROMPT));
+        String tutorPrompt = configService.getConfigValue("edu.tutoring.prompt", DEFAULT_TUTOR_PROMPT);
+        messages.add(new SystemMessage(tutorPrompt));
         for (AiTutoringMessageDO msg : history) {
             messages.add(new UserMessage(msg.getContent()));
         }
 
-        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-        ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                model.getTemperature(), model.getMaxTokens());
-        Prompt prompt = new Prompt(messages, options);
-        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
-
         Long finalSessionId = sessionId;
         AiTutoringSessionDO finalSession = session;
-        StringBuffer contentBuffer = new StringBuffer();
-        return streamResponse.map(chunk -> {
-            String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-            contentBuffer.append(newContent);
-            return success(newContent);
-        }).doOnComplete(() -> {
-            TenantUtils.executeIgnore(() -> {
-                AiTutoringMessageDO assistantMsg = new AiTutoringMessageDO();
-                assistantMsg.setSessionId(finalSessionId).setUserId(userId).setRole("assistant")
-                        .setContentType("text").setContent(contentBuffer.toString());
-                tutoringMessageMapper.insert(assistantMsg);
-                if (finalSession.getTitle() == null || finalSession.getTitle().length() < 3) {
-                    tutoringSessionMapper.updateById(new AiTutoringSessionDO()
-                            .setId(finalSessionId).setTitle(StrUtil.sub(reqVO.getQuestion(), 0, 50)));
-                }
+        // 构建多模型 fallback 链：按 sort 顺序尝试，失败自动切下一个
+        Flux<CommonResult<String>> result = null;
+        for (int i = models.size() - 1; i >= 0; i--) {
+            AiModelDO model = models.get(i);
+            ChatModel chatModel = modelService.getChatModel(model.getId());
+            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
+            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
+                    model.getTemperature(), model.getMaxTokens());
+            Prompt prompt = new Prompt(messages, options);
+
+            StringBuffer contentBuffer = new StringBuffer();
+            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
+                contentBuffer.append(newContent);
+                return success(newContent);
+            }).doOnComplete(() -> {
+                TenantUtils.executeIgnore(() -> {
+                    AiTutoringMessageDO assistantMsg = new AiTutoringMessageDO();
+                    assistantMsg.setSessionId(finalSessionId).setUserId(userId).setRole("assistant")
+                            .setContentType("text").setContent(contentBuffer.toString());
+                    tutoringMessageMapper.insert(assistantMsg);
+                    if (finalSession.getTitle() == null || finalSession.getTitle().length() < 3) {
+                        tutoringSessionMapper.updateById(new AiTutoringSessionDO()
+                                .setId(finalSessionId).setTitle(StrUtil.sub(reqVO.getQuestion(), 0, 50)));
+                    }
+                });
             });
-        }).doOnError(throwable -> {
-            log.error("[tutoringChat][sessionId({}) 异常]", finalSessionId, throwable);
-        }).onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)));
+            if (result == null) {
+                result = stream;
+            } else {
+                Flux<CommonResult<String>> current = stream;
+                Flux<CommonResult<String>> next = result;
+                result = current.onErrorResume(e -> {
+                    log.warn("[tutoringChat][模型({}) 失败，尝试下一个]", model.getName(), e);
+                    return next;
+                });
+            }
+        }
+        return result != null ? result.onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)))
+                : Flux.just(error(EDUCATION_STREAM_ERROR));
     }
 
     @Override

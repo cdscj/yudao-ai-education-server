@@ -84,4 +84,23 @@ public interface AiChatMessageService {
      */
     PageResult<AiChatMessageDO> getChatMessagePage(AiChatMessagePageReqVO pageReqVO);
 
+    /**
+     * 重新生成消息回复
+     *
+     * @param conversationId 对话编号
+     * @param messageId 消息编号
+     * @param userId 用户编号
+     * @return 发送结果
+     */
+    AiChatMessageSendRespVO regenerateMessage(Long conversationId, Long messageId, Long userId);
+
+    /**
+     * 自动生成对话标题
+     *
+     * @param conversationId 对话编号
+     * @param userId 用户编号
+     * @return 对话标题
+     */
+    String autoGenerateConversationTitle(Long conversationId, Long userId);
+
 }

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.service.education;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
@@ -14,6 +15,7 @@ import cn.iocoder.yudao.module.ai.dal.mysql.education.AiLearningPathMapper;
 import cn.iocoder.yudao.module.ai.dal.mysql.education.AiLearningPathNodeMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
+import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
@@ -22,7 +24,6 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -47,9 +48,11 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
     @Resource
     private AiLearningPathNodeMapper learningPathNodeMapper;
     @Resource
-    private AiModelService modalService;
+    private AiModelService modelService;
+    @Resource
+    private AiSystemConfigService configService;
 
-    private static final String PATH_SYSTEM_PROMPT = """
+    private static final String DEFAULT_PATH_PROMPT = """
             你是一位学习路径规划专家。根据用户的学习目标、课程和时间周期，制定科学、有序的个性化学习路径。
             
             请按以下JSON格式输出：
@@ -72,8 +75,11 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
 
     @Override
     public Flux<CommonResult<String>> generatePath(LearningPathGenerateReqVO reqVO, Long userId) {
-        AiModelDO model = modalService.getRequiredDefaultModel(AiModelTypeEnum.CHAT.getType());
-        ChatModel chatModel = modalService.getChatModel(model.getId());
+        List<AiModelDO> models = modelService.getEnabledModels(AiModelTypeEnum.CHAT.getType());
+        if (CollUtil.isEmpty(models)) {
+            log.error("[generatePath][userId({}) 无可用模型]", userId);
+            return Flux.just(error(MODEL_DEFAULT_NOT_EXISTS));
+        }
 
         AiLearningPathDO path = new AiLearningPathDO();
         path.setUserId(userId).setGoal(reqVO.getGoal()).setStatus("GENERATING");
@@ -81,36 +87,57 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
 
         Long pathId = path.getId();
         List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(PATH_SYSTEM_PROMPT));
+        String pathPrompt = configService.getConfigValue("edu.path.prompt", DEFAULT_PATH_PROMPT);
+        messages.add(new SystemMessage(pathPrompt));
         String userMsg = StrUtil.format("学习目标：{}\n课程领域：{}\n时间周期：{}天",
                 reqVO.getGoal(), StrUtil.nullToDefault(reqVO.getCourseName(), ""),
                 reqVO.getDurationDays() != null ? reqVO.getDurationDays() : 30);
         messages.add(new UserMessage(userMsg));
 
-        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-        ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                model.getTemperature(), model.getMaxTokens());
-        Prompt prompt = new Prompt(messages, options);
-        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
+        Flux<CommonResult<String>> result = null;
+        for (int i = models.size() - 1; i >= 0; i--) {
+            AiModelDO model = models.get(i);
+            ChatModel chatModel = modelService.getChatModel(model.getId());
+            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
+            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
+                    model.getTemperature(), model.getMaxTokens());
+            Prompt prompt = new Prompt(messages, options);
 
-        StringBuffer contentBuffer = new StringBuffer();
-        return streamResponse.map(chunk -> {
-            String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-            contentBuffer.append(newContent);
-            return success(newContent);
-        }).doOnComplete(() -> {
-            TenantUtils.executeIgnore(() -> {
-                String fullContent = contentBuffer.toString();
-                learningPathMapper.updateById(new AiLearningPathDO()
-                        .setId(pathId).setDescription(fullContent).setStatus("COMPLETED"));
+            StringBuffer contentBuffer = new StringBuffer();
+            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
+                if (newContent == null || "null".equals(newContent)) newContent = "";
+                contentBuffer.append(newContent);
+                return success(newContent);
+            }).doOnComplete(() -> {
+                TenantUtils.executeIgnore(() -> {
+                    String fullContent = contentBuffer.toString();
+                    learningPathMapper.updateById(new AiLearningPathDO()
+                            .setId(pathId).setDescription(fullContent).setStatus("COMPLETED"));
+                });
+            }).doOnError(throwable -> {
+                log.error("[generatePath][reqVO({}) 异常]", reqVO, throwable);
+                TenantUtils.executeIgnore(() -> {
+                    learningPathMapper.updateById(new AiLearningPathDO()
+                            .setId(pathId).setStatus("FAILED"));
+                });
             });
-        }).doOnError(throwable -> {
-            log.error("[generatePath][reqVO({}) 异常]", reqVO, throwable);
-            TenantUtils.executeIgnore(() -> {
-                learningPathMapper.updateById(new AiLearningPathDO()
-                        .setId(pathId).setStatus("FAILED"));
-            });
-        }).onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)));
+
+            if (result == null) {
+                result = stream;
+            } else {
+                Flux<CommonResult<String>> current = stream;
+                Flux<CommonResult<String>> next = result;
+                result = current.onErrorResume(e -> {
+                    log.warn("[generatePath][模型({}) 失败，尝试下一个]", model.getName(), e);
+                    return next;
+                });
+            }
+        }
+        return result != null ? result.onErrorResume(error -> {
+            log.error("[generatePath][userId({}) 所有模型均失败]", userId, error);
+            return Flux.just(error(EDUCATION_STREAM_ERROR));
+        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
     }
 
     @Override

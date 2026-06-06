@@ -37,11 +37,22 @@ spring:
 
 server:
   port: 48090
+  shutdown: graceful # 优雅关闭：等待在途请求完成
+  tomcat:
+    connection-timeout: 30s # 连接超时
+    max-connections: 200 # 最大连接数
+    threads:
+      max: 50 # Tomcat 工作线程最大数
+      min-spare: 10 # Tomcat 工作线程最小空闲数
   servlet:
     encoding:
       enabled: true
       charset: UTF-8 # 必须设置 UTF-8，避免 WebFlux 流式返回（AI 场景）会乱码问题
       force: true
+
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s # 每阶段最多等待 30 秒
 
 logging:
   file:
@@ -78,7 +89,7 @@ mybatis-plus:
     banner: false # 关闭控制台的 Banner 打印
   type-aliases-package: ${yudao.info.base-package}.module.*.dal.dataobject
   encryptor:
-    password: XDV71a+xqStEA3WH # 加解密的秘钥，可使用 https://www.imaegoo.com/2020/aes-key-generator/ 网站生成
+    password: ${AES_ENCRYPT_KEY:XDV71a+xqStEA3WH} # 加解密的秘钥，可使用 https://www.imaegoo.com/2020/aes-key-generator/ 网站生成
 
 mybatis-plus-join:
   banner: false # 关闭控制台的 Banner 打印
@@ -119,35 +130,35 @@ spring:
         database-name: default # Milvus 中数据库的名称
         collection-name: knowledge_segment # Milvus 中集合的名称：用于存储向量数据的集合标识符，所有相关的向量操作都会在这个集合中进行
         client:
-          host: 192.168.150.102
+          host: 127.0.0.1
           port: 19530
     qianfan: # 文心一言
-      api-key: x0cuLZ7XsaTCU08vuJWO87Lg
-      secret-key: R9mYF9dl9KASgi5RUq0FQt3wRisSnOcK
+      api-key: ${QIANFAN_API_KEY:}
+      secret-key: ${QIANFAN_SECRET_KEY:}
     zhipuai: # 智谱 AI
-      api-key: 32f84543e54eee31f8d56b2bd6020573.3vh9idLJZ2ZhxDEs
+      api-key: ${ZHIPUAI_API_KEY:}
     openai: # OpenAI 官方
-      api-key: sk-aN6nWn3fILjrgLFT0fC4Aa60B72e4253826c77B29dC94f17
+      api-key: ${OPENAI_API_KEY:}
       base-url: https://api.gptsapi.net
     azure: # OpenAI 微软
       openai:
         endpoint: https://eastusprejade.openai.azure.com
     anthropic: # Anthropic Claude
-      api-key: sk-muubv7cXeLw0Etgs743f365cD5Ea44429946Fa7e672d8942
+      api-key: ${ANTHROPIC_API_KEY:}
     ollama:
       base-url: http://127.0.0.1:11434
       chat:
         model: llama3
     stabilityai:
-      api-key: sk-e53UqbboF8QJCscYvzJscJxJXoFcFg4iJjl1oqgE7baJETmx
+      api-key: ${STABILITYAI_API_KEY:}
     dashscope: # 通义千问
-      api-key: sk-47aa124781be4bfb95244cc62f6xxxx
+      api-key: ${DASHSCOPE_API_KEY:}
     minimax: # Minimax：https://www.minimaxi.com/
-      api-key: xxxx
+      api-key: ${MINIMAX_API_KEY:xxxx}
     moonshot: # 月之暗面（KIMI）
-      api-key: sk-abc
+      api-key: ${MINIMAX_API_KEY:sk-abc}
     deepseek: # DeepSeek
-      api-key: sk-e039d3165dd74cebbf732df2a06fd388
+      api-key: ${DEEPSEEK_API_KEY:}
       chat:
         options:
           model: deepseek-v4-pro
@@ -174,43 +185,79 @@ spring:
 yudao:
   ai:
     gemini: # 谷歌 Gemini
-      enable: true
-      api-key: AIzaSyAVoBxgoFvvte820vEQMma2LKBnC98bqMQ
+      enable: false
+      api-key: ${GEMINI_API_KEY:}
       model: gemini-2.5-flash
     doubao: # 字节豆包
-      enable: true
-      api-key: 5c1b5747-26d2-4ebd-a4e0-dd0e8d8b4272
+      enable: false
+      api-key: ${DOUBAO_API_KEY:}
       model: doubao-1-5-lite-32k-250115
     hunyuan: # 腾讯混元
-      enable: true
-      api-key: sk-abc
+      enable: false
+      api-key: ${MINIMAX_API_KEY:sk-abc}
       model: hunyuan-turbo
     siliconflow: # 硅基流动
-      enable: true
-      api-key: sk-epsakfenqnyzoxhmbucsxlhkdqlcbnimslqoivkshalvdozz
+      enable: false
+      api-key: ${SILICONFLOW_API_KEY:}
       model: deepseek-ai/DeepSeek-R1-Distill-Qwen-7B
     xinghuo: # 讯飞星火
-      enable: true
-      appKey: 75b161ed2aef4719b275d6e7f2a4d4cd
-      secretKey: YWYxYWI2MTA4ODI2NGZlYTQyNjAzZTcz
+      enable: false
+      appKey: ${XINGHUO_APP_KEY:}
+      secretKey: ${XINGHUO_SECRET_KEY:}
       model: x1
     baichuan: # 百川智能
-      enable: true
-      api-key: sk-abc
+      enable: false
+      api-key: ${MINIMAX_API_KEY:sk-abc}
       model: Baichuan4-Turbo
     midjourney:
-      enable: true
-  #    base-url: https://api.holdai.top/mj-relax/mj
+      enable: false
+      #    base-url: https://api.holdai.top/mj-relax/mj
       base-url: https://api.holdai.top/mj
-      api-key: sk-dZEPiVaNcT3FHhef51996bAa0bC74806BeAb620dA5Da10Bf
+      api-key: ${MIDJOURNEY_API_KEY:}
       notify-url: http://java.nat300.top/admin-api/ai/image/midjourney/notify
     suno:
-      enable: true
-  #    base-url: https://suno-55ishh05u-status2xxs-projects.vercel.app
+      enable: false
+      #    base-url: https://suno-55ishh05u-status2xxs-projects.vercel.app
       base-url: http://127.0.0.1:3001
     web-search:
-      enable: true
-      api-key: sk-40500e52840f4d24b956d0b1d80d9abe
+      enable: false
+      api-key: ${WEB_SEARCH_API_KEY:}
+
+--- #################### AI 安全与配置 ####################
+
+yudao:
+  ai:
+    security:
+      rate-limit-enabled: true
+      sensitive-word-enabled: true
+      content-review-enabled: false
+      quota-enabled: true
+      max-calls-per-minute: 20
+      max-calls-per-hour: 200
+    statistics:
+      record-enabled: true
+      retention-days: 90
+    chat:
+      auto-generate-title: true
+      max-conversations-per-user: 100
+      default-max-contexts: 10
+      default-temperature: 0.8
+
+--- #################### AI 社交与学习配置 ####################
+
+yudao:
+  ai:
+    social:
+      check-in:
+        base-points: 10         # 基础签到积分
+        streak-bonus-7: 5        # 连续7天额外积分
+        streak-bonus-30: 10      # 连续30天额外积分
+        streak-bonus-100: 20     # 连续100天额外积分
+      leaderboard:
+        redis-enabled: true      # 是否启用 Redis 排行榜
+        top-n: 20                # 排行榜默认返回数量
+      activity:
+        retention-days: 90       # 动态保留天数
 
 --- #################### 芋道相关配置 ####################
 
@@ -233,3 +280,28 @@ yudao:
     enable: true
 
 debug: false
+
+# ========== AI 调用超时与容错配置 ==========
+spring:
+  ai:
+    retry:
+      max-attempts: 2       # AI 调用失败重试 1 次
+      backoff:
+        initial-interval: 2000ms  # 重试间隔 2 秒
+    openai:
+      connect-timeout: 10s  # 连接超时
+      read-timeout: 60s     # 读取超时（AI 生成可能需要较长时间）
+    ollama:
+      chat:
+        timeout: 120s       # Ollama 本地模型超时更长
+
+# 科大讯飞 Spark AI Configuration (使用 OpenAI 兼容接口)
+# 接口文档: https://www.xfyun.cn/doc/spark/Web.html#_2-openai-兼容接口
+iflytek:
+  # 请填入科大讯飞的 APIPassword (注意不是 APIKey/APISecret)
+  apiKey: ${IFLYTEK_API_KEY:}
+  # OpenAI 兼容接口地址 (请勿随意修改)
+  apiUrl: https://spark-api-open.xf-yun.com/v2/chat/completions
+  # 模型参数，常见值: general (Lite/V1.5/V2/V3), generalv3 (Pro), generalv3.5 (Max), 4.0Ultra (Ultra)
+  # 如果 general 报错，请尝试 generalv3 或 generalv3.5
+  model: spark-x

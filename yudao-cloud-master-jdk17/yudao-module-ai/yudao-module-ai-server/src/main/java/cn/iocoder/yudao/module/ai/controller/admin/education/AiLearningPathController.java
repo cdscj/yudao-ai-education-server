@@ -13,7 +13,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -23,6 +25,7 @@ import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUti
 @Tag(name = "管理后台 - 学习路径")
 @RestController
 @RequestMapping("/ai/education/path")
+@Validated
 public class AiLearningPathController {
 
     @Resource
@@ -30,6 +33,7 @@ public class AiLearningPathController {
 
     @PostMapping(value = "/generate-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "生成学习路径（流式）")
+    @PreAuthorize("@ss.hasPermission('ai:learning-path:query')")
     public Flux<CommonResult<String>> generatePath(@RequestBody @Valid LearningPathGenerateReqVO reqVO) {
         return learningPathService.generatePath(reqVO, getLoginUserId());
     }
@@ -37,6 +41,7 @@ public class AiLearningPathController {
     @GetMapping("/get")
     @Operation(summary = "获取学习路径")
     @Parameter(name = "id", description = "编号", required = true)
+    @PreAuthorize("@ss.hasPermission('ai:learning-path:query')")
     public CommonResult<LearningPathRespVO> getPath(@RequestParam("id") Long id) {
         AiLearningPathDO path = learningPathService.getPath(id);
         return success(BeanUtils.toBean(path, LearningPathRespVO.class));
@@ -44,12 +49,14 @@ public class AiLearningPathController {
 
     @GetMapping("/page")
     @Operation(summary = "获得学习路径分页")
+    @PreAuthorize("@ss.hasPermission('ai:learning-path:query')")
     public CommonResult<PageResult<LearningPathRespVO>> getPathPage(@Valid LearningPathPageReqVO reqVO) {
         return success(BeanUtils.toBean(learningPathService.getPathPage(reqVO), LearningPathRespVO.class));
     }
 
     @PutMapping("/update-node-status")
     @Operation(summary = "更新节点进度")
+    @PreAuthorize("@ss.hasPermission('ai:learning-path:update')")
     public CommonResult<Boolean> updateNodeStatus(@RequestParam("nodeId") Long nodeId, @RequestParam("status") String status) {
         learningPathService.updateNodeStatus(nodeId, status);
         return success(true);
@@ -58,6 +65,7 @@ public class AiLearningPathController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除学习路径")
     @Parameter(name = "id", description = "编号", required = true)
+    @PreAuthorize("@ss.hasPermission('ai:learning-path:delete')")
     public CommonResult<Boolean> deletePath(@RequestParam("id") Long id) {
         learningPathService.deletePath(id);
         return success(true);

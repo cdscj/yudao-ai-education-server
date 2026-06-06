@@ -88,6 +88,32 @@ public class AiChatConversationController {
         return success(true);
     }
 
+    @DeleteMapping("/batch-delete")
+    @Operation(summary = "批量删除对话")
+    @Parameter(name = "ids", required = true, description = "对话编号列表")
+    public CommonResult<Boolean> batchDeleteConversation(@RequestParam("ids") List<Long> ids) {
+        chatConversationService.batchDeleteConversation(ids, getLoginUserId());
+        return success(true);
+    }
+
+    @DeleteMapping("/clear-history")
+    @Operation(summary = "清空对话历史")
+    public CommonResult<Boolean> clearConversationHistory() {
+        chatConversationService.clearConversationHistory(getLoginUserId());
+        return success(true);
+    }
+
+    @PutMapping("/update-title")
+    @Operation(summary = "更新对话标题")
+    @Parameter(name = "id", required = true, description = "对话编号")
+    @Parameter(name = "title", required = true, description = "新标题")
+    public CommonResult<Boolean> updateConversationTitle(
+            @RequestParam("id") Long id,
+            @RequestParam("title") String title) {
+        chatConversationService.updateChatConversationTitle(id, title);
+        return success(true);
+    }
+
     // ========== 对话管理 ==========
 
     @GetMapping("/page")

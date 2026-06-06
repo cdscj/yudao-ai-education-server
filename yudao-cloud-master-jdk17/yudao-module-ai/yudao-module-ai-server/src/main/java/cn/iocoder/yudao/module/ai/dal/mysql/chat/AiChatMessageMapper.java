@@ -32,6 +32,16 @@ public interface AiChatMessageMapper extends BaseMapperX<AiChatMessageDO> {
                 .orderByAsc(AiChatMessageDO::getId));
     }
 
+    default void deleteByConversationId(Long conversationId) {
+        delete(new LambdaQueryWrapperX<AiChatMessageDO>()
+                .eq(AiChatMessageDO::getConversationId, conversationId));
+    }
+
+    default void deleteByConversationIds(Collection<Long> conversationIds) {
+        delete(new LambdaQueryWrapperX<AiChatMessageDO>()
+                .in(AiChatMessageDO::getConversationId, conversationIds));
+    }
+
     default Map<Long, Integer> selectCountMapByConversationId(Collection<Long> conversationIds) {
         // SQL count 查询
         List<Map<String, Object>> result = selectMaps(new QueryWrapper<AiChatMessageDO>()

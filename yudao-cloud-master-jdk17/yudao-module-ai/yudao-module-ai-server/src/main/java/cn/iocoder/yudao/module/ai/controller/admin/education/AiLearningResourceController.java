@@ -12,7 +12,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
@@ -22,6 +24,7 @@ import static cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUti
 @Tag(name = "管理后台 - 学习资源")
 @RestController
 @RequestMapping("/ai/education/resource")
+@Validated
 public class AiLearningResourceController {
 
     @Resource
@@ -29,6 +32,7 @@ public class AiLearningResourceController {
 
     @PostMapping(value = "/generate-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "生成学习资源（流式）")
+    @PreAuthorize("@ss.hasPermission('ai:learning-resource:query')")
     public Flux<CommonResult<String>> generateResource(@RequestBody @Valid LearningResourceGenerateReqVO reqVO) {
         return learningResourceService.generateResource(reqVO, getLoginUserId());
     }
@@ -36,12 +40,14 @@ public class AiLearningResourceController {
     @GetMapping("/get")
     @Operation(summary = "获取学习资源")
     @Parameter(name = "id", description = "编号", required = true)
+    @PreAuthorize("@ss.hasPermission('ai:learning-resource:query')")
     public CommonResult<LearningResourceRespVO> getResource(@RequestParam("id") Long id) {
         return success(BeanUtils.toBean(learningResourceService.getResource(id), LearningResourceRespVO.class));
     }
 
     @GetMapping("/page")
     @Operation(summary = "获得学习资源分页")
+    @PreAuthorize("@ss.hasPermission('ai:learning-resource:query')")
     public CommonResult<PageResult<LearningResourceRespVO>> getResourcePage(@Valid LearningResourcePageReqVO reqVO) {
         return success(BeanUtils.toBean(learningResourceService.getResourcePage(reqVO), LearningResourceRespVO.class));
     }
@@ -49,6 +55,7 @@ public class AiLearningResourceController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除学习资源")
     @Parameter(name = "id", description = "编号", required = true)
+    @PreAuthorize("@ss.hasPermission('ai:learning-resource:delete')")
     public CommonResult<Boolean> deleteResource(@RequestParam("id") Long id) {
         learningResourceService.deleteResource(id);
         return success(true);

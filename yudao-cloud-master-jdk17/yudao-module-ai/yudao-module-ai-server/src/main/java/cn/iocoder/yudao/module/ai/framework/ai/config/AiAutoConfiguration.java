@@ -68,8 +68,13 @@ public class AiAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ObservationRegistry observationRegistry() {
-        // 特殊：兜底有 ObservationRegistry Bean，避免相关的 ChatModel 创建报错。相关 issue：https://t.zsxq.com/CuPu4
-        return ObservationRegistry.NOOP;
+        // 使用 Micrometer 的真正 ObservationRegistry，确保 AI 调用的观测指标被收集
+        // 如果未集成 Micrometer（极少情况），则回退到 NOOP
+        try {
+            return io.micrometer.observation.ObservationRegistry.create();
+        } catch (Exception e) {
+            return ObservationRegistry.NOOP;
+        }
     }
 
     // ========== 各种 AI Client 创建 ==========

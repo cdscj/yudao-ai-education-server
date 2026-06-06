@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.dal.dataobject.model;
 
+import cn.iocoder.yudao.framework.tenant.core.aop.TenantIgnore;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
@@ -18,11 +19,12 @@ import lombok.*;
  * @since 2024/4/24 19:39
  */
 @TableName("ai_model")
-@KeySequence("ai_model_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
+@KeySequence("ai_model_seq")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@TenantIgnore
 public class AiModelDO extends TenantBaseDO {
 
     /**
@@ -84,5 +86,23 @@ public class AiModelDO extends TenantBaseDO {
      * 上下文的最大 Message 数量
      */
     private Integer maxContexts;
+    /**
+     * TopP 核采样参数
+     *
+     * 值范围 0.0-1.0，越接近 1.0 生成的文本随机性越高
+     */
+    private Double topP;
+    /**
+     * 频率惩罚
+     *
+     * 值范围 -2.0 到 2.0，正值降低重复内容可能性
+     */
+    private Double frequencyPenalty;
+    /**
+     * 存在惩罚
+     *
+     * 值范围 -2.0 到 2.0，正值降低话题重复可能性
+     */
+    private Double presencePenalty;
 
 }

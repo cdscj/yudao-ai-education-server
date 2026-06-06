@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.dal.dataobject.model;
 
+import cn.iocoder.yudao.framework.tenant.core.aop.TenantIgnore;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.framework.common.enums.CommonStatusEnum;
 import cn.iocoder.yudao.framework.tenant.core.db.TenantBaseDO;
@@ -14,11 +15,12 @@ import lombok.*;
  * @author 芋道源码
  */
 @TableName("ai_api_key")
-@KeySequence("ai_api_key_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
+@KeySequence("ai_api_key_seq")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@TenantIgnore
 public class AiApiKeyDO extends TenantBaseDO {
 
     /**

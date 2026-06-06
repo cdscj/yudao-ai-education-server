@@ -10,6 +10,8 @@ import cn.iocoder.yudao.module.ai.service.knowledge.bo.AiKnowledgeSegmentSearchR
 import cn.iocoder.yudao.module.ai.service.knowledge.bo.AiKnowledgeSegmentSearchRespBO;
 import org.springframework.scheduling.annotation.Async;
 
+import static cn.iocoder.yudao.module.ai.framework.config.AiAsyncConfiguration.AI_THREAD_POOL_TASK_EXECUTOR;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +73,7 @@ public interface AiKnowledgeSegmentService {
      * @param documentId 知识库文档编号
      * @param content    文档内容
      */
-    @Async
+    @Async(AI_THREAD_POOL_TASK_EXECUTOR)
     default void createKnowledgeSegmentBySplitContentAsync(Long documentId, String content) {
         createKnowledgeSegmentBySplitContent(documentId, content);
     }
@@ -110,7 +112,7 @@ public interface AiKnowledgeSegmentService {
      *
      * @param knowledgeId 知识库编号
      */
-    @Async
+    @Async(AI_THREAD_POOL_TASK_EXECUTOR)
     default void reindexByKnowledgeIdAsync(Long knowledgeId) {
         reindexKnowledgeSegmentByKnowledgeId(knowledgeId);
     }

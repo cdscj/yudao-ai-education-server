@@ -55,6 +55,14 @@ public class YudaoAiProperties {
     private Suno suno;
 
     /**
+     * 向量存储类型
+     *
+     * 可选值：milvus、qdrant、redis、simple
+     * 不配置时，默认自动检测（milvus → qdrant → redis → simple）
+     */
+    private String vectorStore;
+
+    /**
      * 网络搜索
      */
     private WebSearch webSearch;

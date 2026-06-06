@@ -8,6 +8,8 @@ import cn.iocoder.yudao.module.ai.controller.admin.model.vo.apikey.AiApiKeySaveR
 import cn.iocoder.yudao.module.ai.dal.dataobject.model.AiApiKeyDO;
 import cn.iocoder.yudao.module.ai.dal.mysql.model.AiApiKeyMapper;
 import jakarta.annotation.Resource;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.validation.annotation.Validated;
 
@@ -30,6 +32,7 @@ public class AiApiKeyServiceImpl implements AiApiKeyService {
     private AiApiKeyMapper apiKeyMapper;
 
     @Override
+    @CacheEvict(cacheNames = "ai:api-key:default", allEntries = true)
     public Long createApiKey(AiApiKeySaveReqVO createReqVO) {
         // 插入
         AiApiKeyDO apiKey = BeanUtils.toBean(createReqVO, AiApiKeyDO.class);
@@ -39,6 +42,7 @@ public class AiApiKeyServiceImpl implements AiApiKeyService {
     }
 
     @Override
+    @CacheEvict(cacheNames = "ai:api-key:default", allEntries = true)
     public void updateApiKey(AiApiKeySaveReqVO updateReqVO) {
         // 校验存在
         validateApiKeyExists(updateReqVO.getId());
@@ -48,6 +52,7 @@ public class AiApiKeyServiceImpl implements AiApiKeyService {
     }
 
     @Override
+    @CacheEvict(cacheNames = "ai:api-key:default", allEntries = true)
     public void deleteApiKey(Long id) {
         // 校验存在
         validateApiKeyExists(id);
@@ -88,6 +93,7 @@ public class AiApiKeyServiceImpl implements AiApiKeyService {
     }
 
     @Override
+    @Cacheable(cacheNames = "ai:api-key:default", key = "#platform + ':' + #status", unless = "#result == null")
     public AiApiKeyDO getRequiredDefaultApiKey(String platform, Integer status) {
         AiApiKeyDO apiKey = apiKeyMapper.selectFirstByPlatformAndStatus(platform, status);
         if (apiKey == null) {

@@ -72,6 +72,23 @@ public class AiChatMessageController {
         return chatMessageService.sendChatMessageStream(sendReqVO, getLoginUserId());
     }
 
+    @PostMapping("/regenerate")
+    @Operation(summary = "重新生成消息回复")
+    @Parameter(name = "conversationId", required = true, description = "对话编号")
+    @Parameter(name = "messageId", required = true, description = "消息编号")
+    public CommonResult<AiChatMessageSendRespVO> regenerateMessage(
+            @RequestParam("conversationId") Long conversationId,
+            @RequestParam("messageId") Long messageId) {
+        return success(chatMessageService.regenerateMessage(conversationId, messageId, getLoginUserId()));
+    }
+
+    @PostMapping("/auto-generate-title")
+    @Operation(summary = "自动生成对话标题")
+    @Parameter(name = "conversationId", required = true, description = "对话编号")
+    public CommonResult<String> autoGenerateTitle(@RequestParam("conversationId") Long conversationId) {
+        return success(chatMessageService.autoGenerateConversationTitle(conversationId, getLoginUserId()));
+    }
+
     @Operation(summary = "获得指定对话的消息列表")
     @GetMapping("/list-by-conversation-id")
     @Parameter(name = "conversationId", required = true, description = "对话编号", example = "1024")

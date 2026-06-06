@@ -13,7 +13,7 @@ public class AiApiKeyRespVO {
     @Schema(description = "名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "文心一言")
     private String name;
 
-    @Schema(description = "密钥", requiredMode = Schema.RequiredMode.REQUIRED, example = "ABC")
+    @Schema(description = "密钥（脱敏，仅显示前4后4位）", requiredMode = Schema.RequiredMode.REQUIRED, example = "sk-a***90Df")
     private String apiKey;
 
     @Schema(description = "平台", requiredMode = Schema.RequiredMode.REQUIRED, example = "OpenAI")
@@ -24,5 +24,12 @@ public class AiApiKeyRespVO {
 
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer status;
+
+    public String getApiKey() {
+        if (apiKey == null || apiKey.length() <= 8) {
+            return apiKey;
+        }
+        return apiKey.substring(0, 4) + "****" + apiKey.substring(apiKey.length() - 4);
+    }
 
 }

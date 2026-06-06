@@ -38,6 +38,8 @@ import org.springframework.ai.openai.OpenAiImageOptions;
 import org.springframework.ai.stabilityai.api.StabilityAiImageOptions;
 import org.springframework.ai.zhipuai.ZhiPuAiImageOptions;
 import org.springframework.scheduling.annotation.Async;
+
+import static cn.iocoder.yudao.module.ai.framework.config.AiAsyncConfiguration.AI_THREAD_POOL_TASK_EXECUTOR;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -108,7 +110,7 @@ public class AiImageServiceImpl implements AiImageService {
         return image.getId();
     }
 
-    @Async
+    @Async(AI_THREAD_POOL_TASK_EXECUTOR)
     public void executeDrawImage(AiImageDO image, AiImageDrawReqVO reqVO, AiModelDO model) {
         try {
             // 1.1 构建请求

@@ -34,6 +34,11 @@ import cn.iocoder.yudao.module.ai.service.model.AiChatRoleService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.service.model.AiToolService;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
+import cn.iocoder.yudao.module.ai.dal.dataobject.chat.AiConversationLogDO;
+import cn.iocoder.yudao.module.ai.service.chat.AiConversationLogService;
+import cn.iocoder.yudao.module.ai.service.config.AiSensitiveWordService;
+import cn.iocoder.yudao.module.ai.service.config.AiStatisticsService;
+import cn.iocoder.yudao.module.ai.service.config.AiUserQuotaService;
 import cn.iocoder.yudao.module.ai.util.FileTypeUtils;
 import com.google.common.collect.Maps;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -70,6 +75,7 @@ import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.
 import static cn.iocoder.yudao.framework.common.util.collection.CollectionUtils.convertSet;
 import static cn.iocoder.yudao.module.ai.enums.ErrorCodeConstants.CHAT_CONVERSATION_NOT_EXISTS;
 import static cn.iocoder.yudao.module.ai.enums.ErrorCodeConstants.CHAT_MESSAGE_NOT_EXIST;
+import static cn.iocoder.yudao.module.ai.enums.ErrorCodeConstants.SENSITIVE_WORD_DETECTED;
 
 /**
  * AI 聊天消息 Service 实现类
@@ -121,6 +127,14 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
     private AiKnowledgeDocumentService knowledgeDocumentService;
     @Resource
     private AiToolService toolService;
+    @Resource
+    private AiSensitiveWordService sensitiveWordService;
+    @Resource
+    private AiUserQuotaService userQuotaService;
+    @Resource
+    private AiStatisticsService statisticsService;
+    @Resource
+    private AiConversationLogService conversationLogService;
 
     @SuppressWarnings("SpringJavaAutowiredFieldsWarningInspection")
     @Autowired(required = false) // 由于 yudao.ai.web-search.enable 配置项，可以关闭 AiWebSearchClient 的功能，所以这里只能不强制注入
@@ -137,7 +151,7 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
     @Resource
     private ToolCallbackResolver toolCallbackResolver;
 
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 120)
     public AiChatMessageSendRespVO sendMessage(AiChatMessageSendReqVO sendReqVO, Long userId) {
         // 1.1 校验对话存在
         AiChatConversationDO conversation = chatConversationService
@@ -146,7 +160,14 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
             throw exception(CHAT_CONVERSATION_NOT_EXISTS);
         }
         List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
-        // 1.2 校验模型
+        // 1.2 敏感词检测
+        String sensitiveWord = sensitiveWordService.checkSensitiveWord(sendReqVO.getContent());
+        if (sensitiveWord != null) {
+            throw exception(SENSITIVE_WORD_DETECTED);
+        }
+        // 1.3 配额检查
+        userQuotaService.checkAndDeductQuota(userId, 1);
+        // 1.4 校验模型
         AiModelDO model = modalService.validateModel(conversation.getModelId());
         ChatModel chatModel = modalService.getChatModel(model.getId());
 
@@ -186,11 +207,75 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                     AiKnowledgeDocumentDO document = documentMap.get(segment.getDocumentId());
                     segment.setDocumentName(document != null ? document.getName() : null);
                 });
+        // 5. 记录统计
+        statisticsService.recordApiCall(userId, model.getId(), model.getName(), model.getPlatform(),
+                "chat", null, null, null, true, null);
+        // 6. 记录对话日志
+        AiConversationLogDO log = new AiConversationLogDO()
+                .setUserId(userId).setConversationId(conversation.getId())
+                .setMessageId(userMessage.getId())
+                .setModelName(model.getName())
+                .setPrompt(sendReqVO.getContent())
+                .setCompletion(newContent)
+                .setSuccess(true);
+        conversationLogService.createConversationLog(log);
         return new AiChatMessageSendRespVO()
                 .setSend(BeanUtils.toBean(userMessage, AiChatMessageSendRespVO.Message.class))
                 .setReceive(BeanUtils.toBean(assistantMessage, AiChatMessageSendRespVO.Message.class)
                         .setContent(newContent).setSegments(segments)
                         .setWebSearchPages(webSearchResponse != null ? webSearchResponse.getLists() : null));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class, timeout = 120)
+    public AiChatMessageSendRespVO regenerateMessage(Long conversationId, Long messageId, Long userId) {
+        // 1. 校验对话存在
+        AiChatConversationDO conversation = chatConversationService.validateChatConversationExists(conversationId);
+        if (ObjUtil.notEqual(conversation.getUserId(), userId)) {
+            throw exception(CHAT_CONVERSATION_NOT_EXISTS);
+        }
+        // 2. 删除旧回复（找到该消息的 reply 消息并删除）
+        AiChatMessageDO oldMessage = chatMessageMapper.selectById(messageId);
+        if (oldMessage == null || ObjUtil.notEqual(oldMessage.getUserId(), userId)) {
+            throw exception(CHAT_MESSAGE_NOT_EXIST);
+        }
+        // 如果有回复，删除旧的回复
+        if (oldMessage.getReplyId() != null) {
+            chatMessageMapper.deleteById(oldMessage.getReplyId());
+        }
+        // 3. 获取历史消息（排除已删除的回复）
+        List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
+        // 4. 重新生成
+        AiChatMessageSendReqVO sendReqVO = new AiChatMessageSendReqVO()
+                .setConversationId(conversationId)
+                .setContent(oldMessage.getContent())
+                .setUseContext(oldMessage.getUseContext())
+                .setAttachmentUrls(oldMessage.getAttachmentUrls());
+        return sendMessage(sendReqVO, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class, timeout = 120)
+    public String autoGenerateConversationTitle(Long conversationId, Long userId) {
+        // 1. 校验对话
+        AiChatConversationDO conversation = chatConversationService.validateChatConversationExists(conversationId);
+        if (ObjUtil.notEqual(conversation.getUserId(), userId)) {
+            throw exception(CHAT_CONVERSATION_NOT_EXISTS);
+        }
+        // 2. 获取第一条用户消息
+        List<AiChatMessageDO> messages = chatMessageMapper.selectListByConversationId(conversationId);
+        String firstUserMessage = messages.stream()
+                .filter(m -> MessageType.USER.getValue().equals(m.getType()))
+                .findFirst()
+                .map(AiChatMessageDO::getContent)
+                .orElse("新对话");
+        // 3. 生成简短标题（取前20个字符）
+        String title = firstUserMessage.length() > 20
+                ? firstUserMessage.substring(0, 20) + "..."
+                : firstUserMessage;
+        // 4. 更新对话标题
+        chatConversationService.updateChatConversationTitle(conversationId, title);
+        return title;
     }
 
     @Override

@@ -175,7 +175,9 @@ public class AiKnowledgeDocumentServiceImpl implements AiKnowledgeDocumentServic
 
     @Override
     public String readUrl(String url) {
-        // 下载文件
+        // 1. SSRF 防护：校验 URL 不为内网地址
+        validateUrl(url);
+        // 2. 下载文件
         ByteArrayResource resource;
         try {
             byte[] bytes = HttpUtil.downloadBytes(url);
@@ -192,9 +194,41 @@ public class AiKnowledgeDocumentServiceImpl implements AiKnowledgeDocumentServic
         return readFileContent(resource);
     }
 
+    /**
+     * SSRF 防护：校验 URL 不为内网地址
+     */
+    private void validateUrl(String url) {
+        try {
+            java.net.URI uri = new java.net.URI(url);
+            String host = uri.getHost();
+            if (host == null) {
+                throw exception(KNOWLEDGE_DOCUMENT_FILE_DOWNLOAD_FAIL);
+            }
+            // 禁止访问内网地址
+            java.net.InetAddress addr = java.net.InetAddress.getByName(host);
+            if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress()
+                    || addr.getHostAddress().startsWith("0.")
+                    || addr.getHostAddress().startsWith("169.254")) {
+                log.warn("[validateUrl][拒绝 SSRF 攻击，url({})]", url);
+                throw exception(KNOWLEDGE_DOCUMENT_FILE_DOWNLOAD_FAIL);
+            }
+        } catch (java.net.URISyntaxException | java.net.UnknownHostException e) {
+            log.warn("[validateUrl][无效 URL，url({})]", url, e);
+            throw exception(KNOWLEDGE_DOCUMENT_FILE_DOWNLOAD_FAIL);
+        }
+    }
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long createKnowledgeDocumentByFile(AiKnowledgeDocumentUploadReqVO uploadReqVO) {
+        // 0. 文件类型校验
+        String originalFilename = uploadReqVO.getFile().getOriginalFilename();
+        if (originalFilename != null) {
+            String ext = originalFilename.substring(originalFilename.lastIndexOf('.') + 1).toLowerCase();
+            if (!java.util.Set.of("pdf", "docx", "doc", "txt", "md", "csv", "xlsx", "pptx").contains(ext)) {
+                throw exception(KNOWLEDGE_DOCUMENT_FILE_DOWNLOAD_FAIL);
+            }
+        }
         // 1. 校验参数
         knowledgeService.validateKnowledgeExists(uploadReqVO.getKnowledgeId());
 

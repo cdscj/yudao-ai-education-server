@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.ai.service.education;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.common.pojo.PageResult;
@@ -12,6 +13,7 @@ import cn.iocoder.yudao.module.ai.dal.dataobject.model.AiModelDO;
 import cn.iocoder.yudao.module.ai.dal.mysql.education.AiLearningResourceMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
+import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
@@ -20,7 +22,6 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -41,9 +42,17 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
     @Resource
     private AiLearningResourceMapper learningResourceMapper;
     @Resource
-    private AiModelService modalService;
+    private AiModelService modelService;
+    @Resource
+    private AiSystemConfigService configService;
 
-    private static String getSystemPrompt(String resourceType) {
+    private String getSystemPrompt(String resourceType) {
+        // 优先使用管理端配置的全局 Prompt
+        String customPrompt = configService.getConfigValue("edu.resource.prompt", null);
+        if (StrUtil.isNotBlank(customPrompt)) {
+            return customPrompt + "\n\n资源类型：" + resourceType;
+        }
+        // 回退到各类型的默认 Prompt
         return switch (resourceType.toUpperCase()) {
             case "DOCUMENT" -> """
                     你是一位课程讲解文档撰写专家。根据用户提供的课程主题和难度级别，生成详细、结构化的课程讲解文档。
@@ -77,11 +86,14 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
 
     @Override
     public Flux<CommonResult<String>> generateResource(LearningResourceGenerateReqVO reqVO, Long userId) {
-        AiModelDO model = modalService.getRequiredDefaultModel(AiModelTypeEnum.CHAT.getType());
-        ChatModel chatModel = modalService.getChatModel(model.getId());
+        List<AiModelDO> models = modelService.getEnabledModels(AiModelTypeEnum.CHAT.getType());
+        if (CollUtil.isEmpty(models)) {
+            log.error("[generateResource][userId({}) 无可用模型]", userId);
+            return Flux.just(error(MODEL_DEFAULT_NOT_EXISTS));
+        }
 
         AiLearningResourceDO resource = BeanUtils.toBean(reqVO, AiLearningResourceDO.class);
-        resource.setUserId(userId).setStatus("GENERATING");
+        resource.setUserId(userId).setStatus("GENERATING").setTitle(reqVO.getTopic());
         learningResourceMapper.insert(resource);
 
         Long resourceId = resource.getId();
@@ -95,29 +107,49 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
         }
         messages.add(new UserMessage(userPrompt));
 
-        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-        ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                model.getTemperature(), model.getMaxTokens());
-        Prompt prompt = new Prompt(messages, options);
-        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
+        Flux<CommonResult<String>> result = null;
+        for (int i = models.size() - 1; i >= 0; i--) {
+            AiModelDO model = models.get(i);
+            ChatModel chatModel = modelService.getChatModel(model.getId());
+            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
+            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
+                    model.getTemperature(), model.getMaxTokens());
+            Prompt prompt = new Prompt(messages, options);
 
-        StringBuffer contentBuffer = new StringBuffer();
-        return streamResponse.map(chunk -> {
-            String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-            contentBuffer.append(newContent);
-            return success(newContent);
-        }).doOnComplete(() -> {
-            TenantUtils.executeIgnore(() -> {
-                learningResourceMapper.updateById(new AiLearningResourceDO()
-                        .setId(resourceId).setContent(contentBuffer.toString()).setStatus("COMPLETED"));
+            StringBuffer contentBuffer = new StringBuffer();
+            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
+                if (newContent == null || "null".equals(newContent)) newContent = "";
+                contentBuffer.append(newContent);
+                return success(newContent);
+            }).doOnComplete(() -> {
+                TenantUtils.executeIgnore(() -> {
+                    learningResourceMapper.updateById(new AiLearningResourceDO()
+                            .setId(resourceId).setContent(contentBuffer.toString()).setStatus("COMPLETED"));
+                });
+            }).doOnError(throwable -> {
+                log.error("[generateResource][reqVO({}) 异常]", reqVO, throwable);
+                TenantUtils.executeIgnore(() -> {
+                    learningResourceMapper.updateById(new AiLearningResourceDO()
+                            .setId(resourceId).setErrorMessage(throwable.getMessage()).setStatus("FAILED"));
+                });
             });
-        }).doOnError(throwable -> {
-            log.error("[generateResource][reqVO({}) 异常]", reqVO, throwable);
-            TenantUtils.executeIgnore(() -> {
-                learningResourceMapper.updateById(new AiLearningResourceDO()
-                        .setId(resourceId).setErrorMessage(throwable.getMessage()).setStatus("FAILED"));
-            });
-        }).onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)));
+
+            if (result == null) {
+                result = stream;
+            } else {
+                Flux<CommonResult<String>> current = stream;
+                Flux<CommonResult<String>> next = result;
+                result = current.onErrorResume(e -> {
+                    log.warn("[generateResource][模型({}) 失败，尝试下一个]", model.getName(), e);
+                    return next;
+                });
+            }
+        }
+        return result != null ? result.onErrorResume(error -> {
+            log.error("[generateResource][userId({}) 所有模型均失败]", userId, error);
+            return Flux.just(error(EDUCATION_STREAM_ERROR));
+        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
     }
 
     @Override
