@@ -3,14 +3,14 @@
 spring:
   cloud:
     nacos:
-      server-addr: 192.168.150.102:8848 # Nacos 服务器地址
+      server-addr: 127.0.0.1:8848 # Nacos 服务器地址
       username: nacos
       password: nacos
       discovery: # 【配置中心】配置项
-        namespace: eb7cbe05-7b43-4dd2-bced-101dcb735ab3 # 命名空间。这里使用 dev 开发环境
+        namespace: dev # 命名空间。这里使用 dev 开发环境
         group: DEFAULT_GROUP # 使用的 Nacos 配置分组，默认为 DEFAULT_GROUP
       config: # 【注册中心】配置项
-        namespace: eb7cbe05-7b43-4dd2-bced-101dcb735ab3 # 命名空间。这里使用 dev 开发环境
+        namespace: dev # 命名空间。这里使用 dev 开发环境
         group: DEFAULT_GROUP # 使用的 Nacos 配置分组，默认为 DEFAULT_GROUPn
 
 --- #################### 监控相关配置 ####################
@@ -37,5 +37,5 @@ spring:
 # 日志文件配置
 logging:
   level:
-    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR # TODO 芋艿：先禁用，Spring Boot 3.X 存在部分错误的 WARN 提示
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR # TODO: 先禁用，Spring Boot 3.X 存在部分错误的 WARN 提示
 

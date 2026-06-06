@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-music/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-music/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-music/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-music/yudao-module-music-api/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-music/yudao-module-music-server/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-auth/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-auth/yudao-module-auth-api/pom.xml" />
+        <option value="$PROJECT_DIR$/yudao-cloud-master-jdk17/yudao-module-auth/yudao-module-auth-server/pom.xml" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_17" default="true" project-jdk-name="ms-17" project-jdk-type="JavaSDK">
+    <output url="file://$PROJECT_DIR$/out" />
+  </component>
+</project>
