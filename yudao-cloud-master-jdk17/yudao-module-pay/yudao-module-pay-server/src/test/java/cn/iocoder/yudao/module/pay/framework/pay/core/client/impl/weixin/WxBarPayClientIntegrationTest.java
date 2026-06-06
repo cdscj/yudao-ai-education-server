@@ -116,7 +116,7 @@ public class WxBarPayClientIntegrationTest {
         config.setMchId("1545083881");
         config.setMchKey("dS1ngeN63JLr3NRbvPH9AJy3MyUxZdim");
 //        config.setSignType(WxPayConstants.SignType.MD5);
-        config.setKeyPath("/Users/yunai/Downloads/wx_pay/apiclient_cert.p12");
+        config.setKeyPath("/path/to/Downloads/wx_pay/apiclient_cert.p12");
         return config;
     }
 

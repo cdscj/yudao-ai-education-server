@@ -15,7 +15,7 @@ public class ErpSupplierPageReqVO extends PageParam {
     @Schema(description = "供应商名称", example = "芋道源码")
     private String name;
 
-    @Schema(description = "手机号码", example = "15601691300")
+    @Schema(description = "手机号码", example = "13800138000")
     private String mobile;
 
     @Schema(description = "联系电话", example = "18818288888")

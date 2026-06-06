@@ -13,7 +13,7 @@ import jakarta.validation.constraints.NotNull;
 @Data
 public class SmsCodeUseReqDTO {
 
-    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
+    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13800138000")
     @Mobile
     @NotEmpty(message = "手机号不能为空")
     private String mobile;

@@ -28,7 +28,7 @@ public class TenantSaveReqVO {
     @NotNull(message = "联系人不能为空")
     private String contactName;
 
-    @Schema(description = "联系手机", example = "15601691300")
+    @Schema(description = "联系手机", example = "13800138000")
     private String contactMobile;
 
     @Schema(description = "租户状态", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

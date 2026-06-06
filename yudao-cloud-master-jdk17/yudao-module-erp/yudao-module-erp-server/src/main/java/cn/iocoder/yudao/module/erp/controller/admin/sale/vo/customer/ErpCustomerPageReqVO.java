@@ -15,10 +15,10 @@ public class ErpCustomerPageReqVO extends PageParam {
     @Schema(description = "客户名称", example = "张三")
     private String name;
 
-    @Schema(description = "手机号码", example = "15601691300")
+    @Schema(description = "手机号码", example = "13800138000")
     private String mobile;
 
-    @Schema(description = "联系电话", example = "15601691300")
+    @Schema(description = "联系电话", example = "13800138000")
     private String telephone;
 
 }

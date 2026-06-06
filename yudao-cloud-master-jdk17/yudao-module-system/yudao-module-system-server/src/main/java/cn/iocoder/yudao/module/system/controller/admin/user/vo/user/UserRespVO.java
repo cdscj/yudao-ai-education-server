@@ -44,7 +44,7 @@ public class UserRespVO{
     @ExcelProperty("用户邮箱")
     private String email;
 
-    @Schema(description = "手机号码", example = "15601691300")
+    @Schema(description = "手机号码", example = "13800138000")
     @ExcelProperty("手机号码")
     private String mobile;
 

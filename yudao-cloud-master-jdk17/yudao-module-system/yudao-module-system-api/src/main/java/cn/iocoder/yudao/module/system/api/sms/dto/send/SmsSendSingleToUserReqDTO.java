@@ -13,7 +13,7 @@ public class SmsSendSingleToUserReqDTO {
 
     @Schema(description = "用户编号", example = "1024")
     private Long userId;
-    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
+    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13800138000")
     @Mobile
     private String mobile;
 

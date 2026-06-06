@@ -18,7 +18,7 @@ import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_
 @ToString(callSuper = true)
 public class MemberUserPageReqVO extends PageParam {
 
-    @Schema(description = "手机号", example = "15601691300")
+    @Schema(description = "手机号", example = "13800138000")
     private String mobile;
 
     @Schema(description = "用户昵称", example = "李四")

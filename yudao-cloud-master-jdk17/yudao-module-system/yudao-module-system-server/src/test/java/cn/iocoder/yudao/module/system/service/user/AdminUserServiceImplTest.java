@@ -360,7 +360,7 @@ public class AdminUserServiceImplTest extends BaseDbUnitTest {
         // mock 数据
         AdminUserDO dbUser = randomAdminUserDO(o -> { // 等会查询到
             o.setUsername("tudou");
-            o.setMobile("15601691300");
+            o.setMobile("13800138000");
             o.setStatus(CommonStatusEnum.ENABLE.getStatus());
             o.setCreateTime(buildTime(2020, 12, 12));
             o.setDeptId(2L);

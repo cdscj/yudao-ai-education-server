@@ -20,7 +20,7 @@ public class AppMemberUserInfoRespVO {
     @Schema(description = "用户头像", requiredMode = Schema.RequiredMode.REQUIRED, example = "https://www.iocoder.cn/xxx.png")
     private String avatar;
 
-    @Schema(description = "用户手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
+    @Schema(description = "用户手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13800138000")
     private String mobile;
 
     @Schema(description = "用户性别", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")

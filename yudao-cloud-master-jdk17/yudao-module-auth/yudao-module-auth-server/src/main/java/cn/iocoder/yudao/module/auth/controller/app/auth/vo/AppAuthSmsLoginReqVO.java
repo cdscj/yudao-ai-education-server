@@ -21,7 +21,7 @@ import org.hibernate.validator.constraints.Length;
 @Builder
 public class AppAuthSmsLoginReqVO {
 
-    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
+    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13800138000")
     @NotEmpty(message = "手机号不能为空")
     @Mobile
     private String mobile;

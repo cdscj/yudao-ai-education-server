@@ -21,7 +21,7 @@ public class MemberUserRespDTO {
     @Schema(description = "用户头像", example = "https://www.iocoder.cn/xxx.jpg")
     private String avatar;
 
-    @Schema(description = "手机号", example = "15601691300")
+    @Schema(description = "手机号", example = "13800138000")
     private String mobile;
 
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)

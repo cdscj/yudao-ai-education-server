@@ -28,7 +28,7 @@ public class TenantRespVO {
     @ExcelProperty("联系人")
     private String contactName;
 
-    @Schema(description = "联系手机", example = "15601691300")
+    @Schema(description = "联系手机", example = "13800138000")
     @ExcelProperty("联系手机")
     private String contactMobile;
 

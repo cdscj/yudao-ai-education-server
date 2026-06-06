@@ -26,7 +26,7 @@ public class ErpSupplierSaveReqVO {
     @Schema(description = "联系人", example = "芋艿")
     private String contact;
 
-    @Schema(description = "手机号码", example = "15601691300")
+    @Schema(description = "手机号码", example = "13800138000")
     @Mobile
     private String mobile;
 

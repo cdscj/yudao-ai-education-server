@@ -65,7 +65,7 @@ public class CodegenEngineVue2Test extends CodegenEngineAbstractTest {
         //writeResult(result, resourcesPath + "/vue2_tree");
         // 断言
         assertResult(result, "/vue2_tree");
-//        writeFile(result, "/Users/yunai/test/demo66.zip");
+//        writeFile(result, "/path/to/test/demo66.zip");
     }
 
     @Test
@@ -110,7 +110,7 @@ public class CodegenEngineVue2Test extends CodegenEngineAbstractTest {
         //writeResult(result, resourcesPath + path);
         // 断言
         assertResult(result, path);
-//        writeFile(result, "/Users/yunai/test/demo11.zip");
+//        writeFile(result, "/path/to/test/demo11.zip");
     }
 
 }

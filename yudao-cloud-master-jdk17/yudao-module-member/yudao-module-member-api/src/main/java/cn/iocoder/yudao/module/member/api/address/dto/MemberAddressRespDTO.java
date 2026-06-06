@@ -16,7 +16,7 @@ public class MemberAddressRespDTO {
     @Schema(description = "收件人名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "芋道")
     private String name;
 
-    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "15601691300")
+    @Schema(description = "手机号", requiredMode = Schema.RequiredMode.REQUIRED, example = "13800138000")
     private String mobile;
 
     @Schema(description = "地区编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "2666")

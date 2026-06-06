@@ -147,14 +147,14 @@ public class TenantServiceImplTest extends BaseDbUnitTest {
             assertEquals("yunai", user.getUsername());
             assertEquals("yuanma", user.getPassword());
             assertEquals("芋道", user.getNickname());
-            assertEquals("15601691300", user.getMobile());
+            assertEquals("13800138000", user.getMobile());
             return true;
         }))).thenReturn(300L);
 
         // 准备参数
         TenantSaveReqVO reqVO = randomPojo(TenantSaveReqVO.class, o -> {
             o.setContactName("芋道");
-            o.setContactMobile("15601691300");
+            o.setContactMobile("13800138000");
             o.setPackageId(100L);
             o.setStatus(randomCommonStatus());
             o.setWebsites(singletonList("https://www.iocoder.cn"));
@@ -290,7 +290,7 @@ public class TenantServiceImplTest extends BaseDbUnitTest {
         TenantDO dbTenant = randomPojo(TenantDO.class, o -> { // 等会查询到
             o.setName("芋道源码");
             o.setContactName("芋艿");
-            o.setContactMobile("15601691300");
+            o.setContactMobile("13800138000");
             o.setStatus(CommonStatusEnum.ENABLE.getStatus());
             o.setCreateTime(buildTime(2020, 12, 12));
         });

@@ -27,11 +27,11 @@ public class ErpCustomerRespVO {
     @ExcelProperty("联系人")
     private String contact;
 
-    @Schema(description = "手机号码", example = "15601691300")
+    @Schema(description = "手机号码", example = "13800138000")
     @ExcelProperty("手机号码")
     private String mobile;
 
-    @Schema(description = "联系电话", example = "15601691300")
+    @Schema(description = "联系电话", example = "13800138000")
     @ExcelProperty("联系电话")
     private String telephone;
 

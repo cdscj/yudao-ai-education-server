@@ -76,8 +76,8 @@ public class WxNativePayClientIntegrationTest {
         config.setMchId("1545083881");
         config.setApiV3Key("459arNsYHl1mgkiO6H9ZH5KkhFXSxaA4");
 //        config.setCertSerialNo(serialNo);
-        config.setPrivateCertPath("/Users/yunai/Downloads/wx_pay/apiclient_cert.pem");
-        config.setPrivateKeyPath("/Users/yunai/Downloads/wx_pay/apiclient_key.pem");
+        config.setPrivateCertPath("/path/to/Downloads/wx_pay/apiclient_cert.pem");
+        config.setPrivateKeyPath("/path/to/Downloads/wx_pay/apiclient_key.pem");
         return config;
     }
 
