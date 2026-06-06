@@ -139,10 +139,10 @@ spring:
       api-key: ${ZHIPUAI_API_KEY:}
     openai: # OpenAI 官方
       api-key: ${OPENAI_API_KEY:}
-      base-url: https://api.gptsapi.net
+      base-url: ${OPENAI_BASE_URL:}
     azure: # OpenAI 微软
       openai:
-        endpoint: https://eastusprejade.openai.azure.com
+        endpoint: ${AZURE_OPENAI_ENDPOINT:}
     anthropic: # Anthropic Claude
       api-key: ${ANTHROPIC_API_KEY:}
     ollama:
@@ -154,9 +154,9 @@ spring:
     dashscope: # 通义千问
       api-key: ${DASHSCOPE_API_KEY:}
     minimax: # Minimax：https://www.minimaxi.com/
-      api-key: ${MINIMAX_API_KEY:xxxx}
+      api-key: ${MINIMAX_API_KEY:}
     moonshot: # 月之暗面（KIMI）
-      api-key: ${MINIMAX_API_KEY:sk-abc}
+      api-key: ${MOONSHOT_API_KEY:}
     deepseek: # DeepSeek
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
@@ -194,7 +194,7 @@ yudao:
       model: doubao-1-5-lite-32k-250115
     hunyuan: # 腾讯混元
       enable: false
-      api-key: ${MINIMAX_API_KEY:sk-abc}
+      api-key: ${HUNYUAN_API_KEY:}
       model: hunyuan-turbo
     siliconflow: # 硅基流动
       enable: false
@@ -207,14 +207,14 @@ yudao:
       model: x1
     baichuan: # 百川智能
       enable: false
-      api-key: ${MINIMAX_API_KEY:sk-abc}
+      api-key: ${BAICHUAN_API_KEY:}
       model: Baichuan4-Turbo
     midjourney:
       enable: false
-      #    base-url: https://api.holdai.top/mj-relax/mj
-      base-url: https://api.holdai.top/mj
+      #    base-url: ${MIDJOURNEY_BASE_URL:}
+      base-url: ${MIDJOURNEY_BASE_URL:}
       api-key: ${MIDJOURNEY_API_KEY:}
-      notify-url: http://java.nat300.top/admin-api/ai/image/midjourney/notify
+      notify-url: ${MIDJOURNEY_NOTIFY_URL:}
     suno:
       enable: false
       #    base-url: https://suno-55ishh05u-status2xxs-projects.vercel.app
@@ -267,7 +267,7 @@ yudao:
     base-package: cn.iocoder.yudao.module.ai
   web:
     admin-ui:
-      url: http://dashboard.yudao.iocoder.cn # Admin 管理后台 UI 的地址
+      url: ${ADMIN_UI_URL:http://localhost:48080}
   xss:
     enable: false
     exclude-urls: # 如下 url，仅仅是为了演示，去掉配置也没关系

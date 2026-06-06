@@ -18,8 +18,8 @@ import java.io.File;
 public class XunFeiPptApiTests {
 
     // 讯飞 API 配置信息，实际使用时请替换为您的应用信息
-    private static final String APP_ID = "6c8ac023";
-    private static final String API_SECRET = "Y2RjM2Q1MWJjZTdkYmFiODc0OGE5NmRk";
+    private static final String APP_ID = "your-xunfei-app-id";
+    private static final String API_SECRET = "your-xunfei-api-secret";
 
     private final XunFeiPptApi xunfeiPptApi = new XunFeiPptApi(APP_ID, API_SECRET);
 
