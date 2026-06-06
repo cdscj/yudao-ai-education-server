@@ -100,16 +100,14 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(getSystemPrompt(reqVO.getResourceType())));
         String userPrompt = StrUtil.format("请生成关于「{}」的{}资源。{}",
-                reqVO.getTopic(), reqVO.getResourceType(), 
+                reqVO.getTopic(), reqVO.getResourceType(),
                 StrUtil.blankToDefault(reqVO.getRequirements(), ""));
         if (StrUtil.isNotBlank(reqVO.getDifficulty())) {
             userPrompt += "\n难度级别：" + reqVO.getDifficulty();
         }
         messages.add(new UserMessage(userPrompt));
 
-        Flux<CommonResult<String>> result = null;
-        for (int i = models.size() - 1; i >= 0; i--) {
-            AiModelDO model = models.get(i);
+        return AiUtils.buildStreamWithFallback(models, model -> {
             ChatModel chatModel = modelService.getChatModel(model.getId());
             AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
             ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
@@ -117,7 +115,7 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
             Prompt prompt = new Prompt(messages, options);
 
             StringBuffer contentBuffer = new StringBuffer();
-            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+            return chatModel.stream(prompt).map(chunk -> {
                 String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
                 if (newContent == null || "null".equals(newContent)) newContent = "";
                 contentBuffer.append(newContent);
@@ -134,22 +132,7 @@ public class AiLearningResourceServiceImpl implements AiLearningResourceService 
                             .setId(resourceId).setErrorMessage(throwable.getMessage()).setStatus("FAILED"));
                 });
             });
-
-            if (result == null) {
-                result = stream;
-            } else {
-                Flux<CommonResult<String>> current = stream;
-                Flux<CommonResult<String>> next = result;
-                result = current.onErrorResume(e -> {
-                    log.warn("[generateResource][模型({}) 失败，尝试下一个]", model.getName(), e);
-                    return next;
-                });
-            }
-        }
-        return result != null ? result.onErrorResume(error -> {
-            log.error("[generateResource][userId({}) 所有模型均失败]", userId, error);
-            return Flux.just(error(EDUCATION_STREAM_ERROR));
-        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
+        }, "generateResource", EDUCATION_STREAM_ERROR);
     }
 
     @Override

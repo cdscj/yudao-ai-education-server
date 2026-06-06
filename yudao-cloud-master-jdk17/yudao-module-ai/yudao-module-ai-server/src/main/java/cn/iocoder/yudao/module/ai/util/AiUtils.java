@@ -2,10 +2,14 @@ package cn.iocoder.yudao.module.ai.util;
 
 import cn.hutool.core.util.ObjUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.iocoder.yudao.framework.common.exception.ErrorCode;
+import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
+import cn.iocoder.yudao.module.ai.dal.dataobject.model.AiModelDO;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import com.alibaba.cloud.ai.dashscope.chat.DashScopeChatOptions;
+import lombok.extern.slf4j.Slf4j;
 import org.springaicommunity.moonshot.MoonshotChatOptions;
 import org.springaicommunity.qianfan.QianFanChatOptions;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
@@ -20,14 +24,19 @@ import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.zhipuai.ZhiPuAiChatOptions;
+import reactor.core.publisher.Flux;
 
 import java.util.*;
+import java.util.function.Function;
+
+import static cn.iocoder.yudao.framework.common.pojo.CommonResult.error;
 
 /**
  * Spring AI 工具类
  *
  * @author 芋道源码
  */
+@Slf4j
 public class AiUtils {
 
     public static final String TOOL_CONTEXT_LOGIN_USER = "LOGIN_USER";
@@ -129,6 +138,48 @@ public class AiUtils {
             return ((DeepSeekAssistantMessage) (response.getResult().getOutput())).getReasoningContent();
         }
         return null;
+    }
+
+    /**
+     * 构建带有模型 fallback 链的流式 Flux。
+     * 从列表末尾（最高优先级）开始尝试，如果某模型流失败则自动切换到下一个模型。
+     *
+     * @param models         已启用的模型列表（按 sort 排序）
+     * @param streamBuilder  为单个模型创建 Flux 流的函数
+     * @param logPrefix      日志前缀（用于区分不同业务场景）
+     * @param finalErrorCode 所有模型均失败时返回的错误码
+     * @return 带有 fallback 的流式 Flux
+     */
+    public static Flux<CommonResult<String>> buildStreamWithFallback(
+            List<AiModelDO> models,
+            Function<AiModelDO, Flux<CommonResult<String>>> streamBuilder,
+            String logPrefix,
+            ErrorCode finalErrorCode) {
+        Flux<CommonResult<String>> result = null;
+        for (int i = models.size() - 1; i >= 0; i--) {
+            AiModelDO model = models.get(i);
+            Flux<CommonResult<String>> stream;
+            try {
+                stream = streamBuilder.apply(model);
+            } catch (Exception e) {
+                log.warn("[{}][模型({}) 创建流失败，跳过]", logPrefix, model.getName(), e);
+                continue;
+            }
+            if (result == null) {
+                result = stream;
+            } else {
+                Flux<CommonResult<String>> current = stream;
+                Flux<CommonResult<String>> next = result;
+                result = current.onErrorResume(e -> {
+                    log.warn("[{}][模型({}) 失败，尝试下一个]", logPrefix, model.getName(), e);
+                    return next;
+                });
+            }
+        }
+        return result != null ? result.onErrorResume(error -> {
+            log.error("[{}][所有模型均失败]", logPrefix, error);
+            return Flux.just(error(finalErrorCode));
+        }) : Flux.just(error(finalErrorCode));
     }
 
 }

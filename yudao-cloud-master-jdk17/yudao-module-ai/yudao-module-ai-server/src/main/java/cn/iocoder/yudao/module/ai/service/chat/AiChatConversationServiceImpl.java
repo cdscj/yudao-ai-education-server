@@ -180,14 +180,16 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
         if (CollUtil.isEmpty(ids)) {
             return;
         }
-        for (Long id : ids) {
-            AiChatConversationDO conversation = chatConversationMapper.selectById(id);
-            if (conversation == null || ObjUtil.notEqual(conversation.getUserId(), userId)) {
-                continue;
-            }
-            chatConversationMapper.deleteById(id);
+        // 批量查询，避免 N+1
+        List<AiChatConversationDO> conversations = chatConversationMapper.selectBatchIds(ids);
+        List<Long> validIds = conversations.stream()
+                .filter(c -> ObjUtil.equal(c.getUserId(), userId))
+                .map(AiChatConversationDO::getId)
+                .toList();
+        if (CollUtil.isNotEmpty(validIds)) {
+            chatConversationMapper.deleteByIds(validIds);
             // 同时删除关联的消息
-            chatMessageMapper.deleteByConversationId(id);
+            chatMessageMapper.deleteByConversationIds(validIds);
         }
     }
 

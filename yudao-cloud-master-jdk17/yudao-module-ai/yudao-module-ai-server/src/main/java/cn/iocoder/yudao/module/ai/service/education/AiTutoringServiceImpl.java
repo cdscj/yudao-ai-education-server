@@ -88,8 +88,8 @@ public class AiTutoringServiceImpl implements AiTutoringService {
         tutoringMessageMapper.insert(userMsg);
 
         List<AiTutoringMessageDO> history = tutoringMessageMapper.selectListBySessionId(sessionId);
-        // 限制最近 50 条历史消息，防止超出 token 限制
-        if (history.size() > 50) { history = history.subList(history.size() - 50, history.size()); }
+        // 限制最近 50 条历史消息，防止超出 token 限制（new ArrayList 避免 subList 视图持有原始大 List 引用）
+        if (history.size() > 50) { history = new ArrayList<>(history.subList(history.size() - 50, history.size())); }
         List<Message> messages = new ArrayList<>();
         String tutorPrompt = configService.getConfigValue("edu.tutoring.prompt", DEFAULT_TUTOR_PROMPT);
         messages.add(new SystemMessage(tutorPrompt));
@@ -99,10 +99,7 @@ public class AiTutoringServiceImpl implements AiTutoringService {
 
         Long finalSessionId = sessionId;
         AiTutoringSessionDO finalSession = session;
-        // 构建多模型 fallback 链：按 sort 顺序尝试，失败自动切下一个
-        Flux<CommonResult<String>> result = null;
-        for (int i = models.size() - 1; i >= 0; i--) {
-            AiModelDO model = models.get(i);
+        return AiUtils.buildStreamWithFallback(models, model -> {
             ChatModel chatModel = modelService.getChatModel(model.getId());
             AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
             ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
@@ -110,7 +107,7 @@ public class AiTutoringServiceImpl implements AiTutoringService {
             Prompt prompt = new Prompt(messages, options);
 
             StringBuffer contentBuffer = new StringBuffer();
-            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+            return chatModel.stream(prompt).map(chunk -> {
                 String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
                 contentBuffer.append(newContent);
                 return success(newContent);
@@ -126,19 +123,7 @@ public class AiTutoringServiceImpl implements AiTutoringService {
                     }
                 });
             });
-            if (result == null) {
-                result = stream;
-            } else {
-                Flux<CommonResult<String>> current = stream;
-                Flux<CommonResult<String>> next = result;
-                result = current.onErrorResume(e -> {
-                    log.warn("[tutoringChat][模型({}) 失败，尝试下一个]", model.getName(), e);
-                    return next;
-                });
-            }
-        }
-        return result != null ? result.onErrorResume(error -> Flux.just(error(EDUCATION_STREAM_ERROR)))
-                : Flux.just(error(EDUCATION_STREAM_ERROR));
+        }, "tutoringChat", EDUCATION_STREAM_ERROR);
     }
 
     @Override

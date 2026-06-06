@@ -94,9 +94,7 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
                 reqVO.getDurationDays() != null ? reqVO.getDurationDays() : 30);
         messages.add(new UserMessage(userMsg));
 
-        Flux<CommonResult<String>> result = null;
-        for (int i = models.size() - 1; i >= 0; i--) {
-            AiModelDO model = models.get(i);
+        return AiUtils.buildStreamWithFallback(models, model -> {
             ChatModel chatModel = modelService.getChatModel(model.getId());
             AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
             ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
@@ -104,7 +102,7 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
             Prompt prompt = new Prompt(messages, options);
 
             StringBuffer contentBuffer = new StringBuffer();
-            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+            return chatModel.stream(prompt).map(chunk -> {
                 String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
                 if (newContent == null || "null".equals(newContent)) newContent = "";
                 contentBuffer.append(newContent);
@@ -122,22 +120,7 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
                             .setId(pathId).setStatus("FAILED"));
                 });
             });
-
-            if (result == null) {
-                result = stream;
-            } else {
-                Flux<CommonResult<String>> current = stream;
-                Flux<CommonResult<String>> next = result;
-                result = current.onErrorResume(e -> {
-                    log.warn("[generatePath][模型({}) 失败，尝试下一个]", model.getName(), e);
-                    return next;
-                });
-            }
-        }
-        return result != null ? result.onErrorResume(error -> {
-            log.error("[generatePath][userId({}) 所有模型均失败]", userId, error);
-            return Flux.just(error(EDUCATION_STREAM_ERROR));
-        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
+        }, "generatePath", EDUCATION_STREAM_ERROR);
     }
 
     @Override

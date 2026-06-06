@@ -153,6 +153,15 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
 
     @Transactional(rollbackFor = Exception.class, timeout = 120)
     public AiChatMessageSendRespVO sendMessage(AiChatMessageSendReqVO sendReqVO, Long userId) {
+        return sendMessageInternal(sendReqVO, userId, false);
+    }
+
+    /**
+     * 发送消息的核心逻辑
+     *
+     * @param skipQuotaCheck 是否跳过配额检查（重新生成时跳过，避免重复扣减）
+     */
+    private AiChatMessageSendRespVO sendMessageInternal(AiChatMessageSendReqVO sendReqVO, Long userId, boolean skipQuotaCheck) {
         // 1.1 校验对话存在
         AiChatConversationDO conversation = chatConversationService
                 .validateChatConversationExists(sendReqVO.getConversationId());
@@ -165,8 +174,10 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         if (sensitiveWord != null) {
             throw exception(SENSITIVE_WORD_DETECTED);
         }
-        // 1.3 配额检查
-        userQuotaService.checkAndDeductQuota(userId, 1);
+        // 1.3 配额检查（重新生成时跳过，避免重复扣减）
+        if (!skipQuotaCheck) {
+            userQuotaService.checkAndDeductQuota(userId, 1);
+        }
         // 1.4 校验模型
         AiModelDO model = modalService.validateModel(conversation.getModelId());
         ChatModel chatModel = modalService.getChatModel(model.getId());
@@ -208,22 +219,34 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                     segment.setDocumentName(document != null ? document.getName() : null);
                 });
         // 5. 记录统计
-        statisticsService.recordApiCall(userId, model.getId(), model.getName(), model.getPlatform(),
-                "chat", null, null, null, true, null);
-        // 6. 记录对话日志
-        AiConversationLogDO log = new AiConversationLogDO()
-                .setUserId(userId).setConversationId(conversation.getId())
-                .setMessageId(userMessage.getId())
-                .setModelName(model.getName())
-                .setPrompt(sendReqVO.getContent())
-                .setCompletion(newContent)
-                .setSuccess(true);
-        conversationLogService.createConversationLog(log);
+        recordChatStatistics(userId, conversation.getId(), model, userMessage.getId(),
+                sendReqVO.getContent(), newContent, true, null);
         return new AiChatMessageSendRespVO()
                 .setSend(BeanUtils.toBean(userMessage, AiChatMessageSendRespVO.Message.class))
                 .setReceive(BeanUtils.toBean(assistantMessage, AiChatMessageSendRespVO.Message.class)
                         .setContent(newContent).setSegments(segments)
                         .setWebSearchPages(webSearchResponse != null ? webSearchResponse.getLists() : null));
+    }
+
+    /**
+     * 记录聊天统计和对话日志
+     */
+    private void recordChatStatistics(Long userId, Long conversationId, AiModelDO model, Long messageId,
+                                      String prompt, String completion, boolean success, String errorMessage) {
+        try {
+            statisticsService.recordApiCall(userId, model.getId(), model.getName(), model.getPlatform(),
+                    "chat", null, null, null, success, errorMessage);
+            AiConversationLogDO log = new AiConversationLogDO()
+                    .setUserId(userId).setConversationId(conversationId)
+                    .setMessageId(messageId)
+                    .setModelName(model.getName())
+                    .setPrompt(prompt)
+                    .setCompletion(completion)
+                    .setSuccess(success);
+            conversationLogService.createConversationLog(log);
+        } catch (Exception e) {
+            log.warn("[recordChatStatistics][记录统计日志失败，不影响主流程]", e);
+        }
     }
 
     @Override
@@ -234,24 +257,22 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         if (ObjUtil.notEqual(conversation.getUserId(), userId)) {
             throw exception(CHAT_CONVERSATION_NOT_EXISTS);
         }
-        // 2. 删除旧回复（找到该消息的 reply 消息并删除）
+        // 2. 找到原消息并删除旧回复
         AiChatMessageDO oldMessage = chatMessageMapper.selectById(messageId);
         if (oldMessage == null || ObjUtil.notEqual(oldMessage.getUserId(), userId)) {
             throw exception(CHAT_MESSAGE_NOT_EXIST);
         }
-        // 如果有回复，删除旧的回复
+        // 2.1 如果有回复，删除旧的回复（在同一事务中生效）
         if (oldMessage.getReplyId() != null) {
             chatMessageMapper.deleteById(oldMessage.getReplyId());
         }
-        // 3. 获取历史消息（排除已删除的回复）
-        List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
-        // 4. 重新生成
+        // 3. 重新生成（跳过配额扣减，因为这是重新生成而非新请求）
         AiChatMessageSendReqVO sendReqVO = new AiChatMessageSendReqVO()
                 .setConversationId(conversationId)
                 .setContent(oldMessage.getContent())
                 .setUseContext(oldMessage.getUseContext())
                 .setAttachmentUrls(oldMessage.getAttachmentUrls());
-        return sendMessage(sendReqVO, userId);
+        return sendMessageInternal(sendReqVO, userId, true);
     }
 
     @Override
@@ -287,8 +308,15 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         if (ObjUtil.notEqual(conversation.getUserId(), userId)) {
             throw exception(CHAT_CONVERSATION_NOT_EXISTS);
         }
+        // 1.2 敏感词检测
+        String sensitiveWord = sensitiveWordService.checkSensitiveWord(sendReqVO.getContent());
+        if (sensitiveWord != null) {
+            throw exception(SENSITIVE_WORD_DETECTED);
+        }
+        // 1.3 配额检查
+        userQuotaService.checkAndDeductQuota(userId, 1);
+        // 1.4 校验模型
         List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
-        // 1.2 校验模型
         AiModelDO model = modalService.validateModel(conversation.getModelId());
         StreamingChatModel chatModel = modalService.getChatModel(model.getId());
 
@@ -323,6 +351,10 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         AtomicBoolean firstExecuteFlag = new AtomicBoolean(true);
         AtomicReference<List<AiChatMessageRespVO.KnowledgeSegment>> cacheSegments = new AtomicReference<>();
         AtomicReference<List<AiWebSearchResponse.WebPage>> cacheWebSearchPages = new AtomicReference<>();
+        // 捕获 effectively-final 变量供 lambda 使用
+        final Long finalConversationId = conversation.getId();
+        final AiModelDO finalModel = model;
+        final Long finalUserMessageId = userMessage.getId();
         return streamResponse.map(chunk -> {
             // 仅首次：返回知识库、联网搜索
             if (StrUtil.isEmpty(contentBuffer)) {
@@ -355,20 +387,33 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                             .setSegments(cacheSegments.get()).setWebSearchPages(cacheWebSearchPages.get()))); // 知识库 + 联网搜索
         }).doOnComplete(() -> {
             // 忽略租户，因为 Flux 异步无法透传租户
-            TenantUtils.executeIgnore(() -> chatMessageMapper.updateById(
-                    new AiChatMessageDO().setId(assistantMessage.getId()).setContent(contentBuffer.toString())
-                            .setReasoningContent(reasoningContentBuffer.toString())));
+            TenantUtils.executeIgnore(() -> {
+                String fullContent = contentBuffer.toString();
+                chatMessageMapper.updateById(
+                        new AiChatMessageDO().setId(assistantMessage.getId()).setContent(fullContent)
+                                .setReasoningContent(reasoningContentBuffer.toString()));
+                // 记录统计和对话日志
+                recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                        sendReqVO.getContent(), fullContent, true, null);
+            });
         }).doOnError(throwable -> {
             log.error("[sendChatMessageStream][userId({}) sendReqVO({}) 发生异常]", userId, sendReqVO, throwable);
             // 忽略租户，因为 Flux 异步无法透传租户
             TenantUtils.executeIgnore(() -> {
                 // 如果有内容，则更新内容
                 if (StrUtil.isNotEmpty(contentBuffer)) {
+                    String partialContent = contentBuffer.toString();
                     chatMessageMapper.updateById(new AiChatMessageDO().setId(assistantMessage.getId())
-                            .setContent(contentBuffer.toString()).setReasoningContent(reasoningContentBuffer.toString()));
+                            .setContent(partialContent).setReasoningContent(reasoningContentBuffer.toString()));
+                    // 记录部分成功的统计
+                    recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                            sendReqVO.getContent(), partialContent, false, throwable.getMessage());
                 } else {
                     // 否则，则进行删除
                     chatMessageMapper.deleteById(assistantMessage.getId());
+                    // 记录失败的统计
+                    recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                            sendReqVO.getContent(), "", false, throwable.getMessage());
                 }
             });
         }).doOnCancel(() -> {

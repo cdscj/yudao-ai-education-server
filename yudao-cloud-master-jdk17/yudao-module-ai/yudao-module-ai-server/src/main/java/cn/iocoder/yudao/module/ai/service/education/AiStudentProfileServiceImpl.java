@@ -90,18 +90,19 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
 
         // 1. 加载现有画像 + 对话历史（用数组 holder 满足 lambda effectively final 要求）
         final AiStudentProfileDO[] profileRef = new AiStudentProfileDO[1];
-        profileRef[0] = studentProfileMapper.selectByUserId(userId);
-        if (profileRef[0] == null) {
-            profileRef[0] = new AiStudentProfileDO();
-            profileRef[0].setUserId(userId);
-            profileRef[0].setProfileJson("{}");
-            profileRef[0].setConversationHistory("[]");
-            studentProfileMapper.insert(profileRef[0]);
-        }
+        profileRef[0] = getOrCreateProfile(userId);
         String historyJson = profileRef[0].getConversationHistory();
 
-        // 2. 追加本轮用户消息到历史 + 同步保存（确保对话不丢失）
+        // 2. 一次性解析历史 JSON（避免后续重复解析）
         List<Map<String, Object>> historyList = parseHistoryList(historyJson);
+
+        // 3. 组装 Prompt（system + 历史 + 当前消息）—— 在修改 historyList 之前构建
+        List<Message> messages = new ArrayList<>();
+        messages.add(new SystemMessage(PROFILE_SYSTEM_PROMPT));
+        messages.addAll(buildHistoryMessagesFromList(historyList));
+        messages.add(new UserMessage(chatReqVO.getMessage()));
+
+        // 4. 追加本轮用户消息到历史 + 同步保存（确保对话不丢失）
         Map<String, Object> userTurn = new HashMap<>();
         userTurn.put("role", "user");
         userTurn.put("content", chatReqVO.getMessage());
@@ -109,30 +110,16 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
         profileRef[0].setConversationHistory(JSONUtil.toJsonStr(historyList));
         studentProfileMapper.updateById(profileRef[0]);
 
-        // 3. 组装 Prompt（system + 历史 + 当前消息）
-        List<Message> messages = new ArrayList<>();
-        messages.add(new SystemMessage(PROFILE_SYSTEM_PROMPT));
-        messages.addAll(buildHistoryMessages(historyJson));
-        messages.add(new UserMessage(chatReqVO.getMessage()));
-
-        // 4. 流式推理 + 多模型 fallback
-        Flux<CommonResult<String>> result = null;
-        for (int i = models.size() - 1; i >= 0; i--) {
-            AiModelDO model = models.get(i);
-            ChatModel chatModel;
-            try {
-                chatModel = modelService.getChatModel(model.getId());
-            } catch (Exception e) {
-                log.error("[chatBuildProfile][userId({}) 模型({}) 创建ChatModel失败]", userId, model.getId(), e);
-                continue;
-            }
+        // 5. 流式推理 + 多模型 fallback（通过 AiUtils 统一管理）
+        return AiUtils.buildStreamWithFallback(models, model -> {
+            ChatModel chatModel = modelService.getChatModel(model.getId());
             AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
             ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
                     model.getTemperature(), model.getMaxTokens());
             Prompt prompt = new Prompt(messages, options);
 
             StringBuffer contentBuffer = new StringBuffer();
-            Flux<CommonResult<String>> stream = chatModel.stream(prompt).map(chunk -> {
+            return chatModel.stream(prompt).map(chunk -> {
                 String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
                 contentBuffer.append(newContent);
                 return success(newContent);
@@ -159,22 +146,7 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
                     studentProfileMapper.updateById(profileRef[0]);
                 });
             });
-
-            if (result == null) {
-                result = stream;
-            } else {
-                Flux<CommonResult<String>> current = stream;
-                Flux<CommonResult<String>> next = result;
-                result = current.onErrorResume(e -> {
-                    log.error("[chatBuildProfile][userId({}) 模型({}) 失败，切换到下一个: {}]", userId, model.getId(), e.getMessage());
-                    return next;
-                });
-            }
-        }
-        return result != null ? result.onErrorResume(error -> {
-            log.error("[chatBuildProfile][userId({}) 所有模型均失败]", userId, error);
-            return Flux.just(error(EDUCATION_STREAM_ERROR));
-        }) : Flux.just(error(EDUCATION_STREAM_ERROR));
+        }, "chatBuildProfile", EDUCATION_STREAM_ERROR);
     }
 
     @Override
@@ -184,26 +156,44 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
     }
 
     /**
-     * 将对话历史 JSON 数组解析为 Spring AI Message 列表（只取最近 MAX_HISTORY_TURNS 轮）
+     * 获取或创建用户画像（双重检查锁，防止并发重复插入）
      */
-    private List<Message> buildHistoryMessages(String historyJson) {
-        List<Message> messages = new ArrayList<>();
-        if (StrUtil.isBlank(historyJson)) return messages;
-        try {
-            JSONArray arr = JSONUtil.parseArray(historyJson);
-            int start = Math.max(0, arr.size() - MAX_HISTORY_TURNS * 2);
-            for (int i = start; i < arr.size(); i++) {
-                JSONObject obj = arr.getJSONObject(i);
-                String role = obj.getStr("role");
-                String content = obj.getStr("content");
-                if ("user".equals(role)) {
-                    messages.add(new UserMessage(content));
-                } else if ("assistant".equals(role)) {
-                    messages.add(new AssistantMessage(content));
-                }
+    private AiStudentProfileDO getOrCreateProfile(Long userId) {
+        AiStudentProfileDO profile = studentProfileMapper.selectByUserId(userId);
+        if (profile != null) {
+            return profile;
+        }
+        synchronized (this) {
+            profile = studentProfileMapper.selectByUserId(userId);
+            if (profile != null) {
+                return profile;
             }
-        } catch (Exception e) {
-            log.warn("[buildHistoryMessages][解析历史消息失败, historyJson={}]", historyJson, e);
+            profile = new AiStudentProfileDO();
+            profile.setUserId(userId);
+            profile.setProfileJson("{}");
+            profile.setConversationHistory("[]");
+            studentProfileMapper.insert(profile);
+            return profile;
+        }
+    }
+
+    /**
+     * 从已解析的历史 Map 列表构建 Spring AI Message 列表（只取最近 MAX_HISTORY_TURNS 轮）
+     * 避免重复 JSON 解析，直接复用 parseHistoryList 的结果
+     */
+    private List<Message> buildHistoryMessagesFromList(List<Map<String, Object>> historyList) {
+        List<Message> messages = new ArrayList<>();
+        if (CollUtil.isEmpty(historyList)) return messages;
+        int start = Math.max(0, historyList.size() - MAX_HISTORY_TURNS * 2);
+        for (int i = start; i < historyList.size(); i++) {
+            Map<String, Object> turn = historyList.get(i);
+            String role = (String) turn.get("role");
+            String content = (String) turn.get("content");
+            if ("user".equals(role)) {
+                messages.add(new UserMessage(content));
+            } else if ("assistant".equals(role)) {
+                messages.add(new AssistantMessage(content));
+            }
         }
         return messages;
     }
