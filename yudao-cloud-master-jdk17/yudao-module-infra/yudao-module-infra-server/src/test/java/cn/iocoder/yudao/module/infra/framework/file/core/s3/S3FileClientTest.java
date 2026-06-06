@@ -35,7 +35,7 @@ public class S3FileClientTest {
         // 配置成你自己的
         config.setAccessKey(System.getenv("ALIYUN_ACCESS_KEY"));
         config.setAccessSecret(System.getenv("ALIYUN_SECRET_KEY"));
-        config.setBucket("yunai-aoteman");
+        config.setBucket("example-bucket");
         config.setDomain(null); // 如果有自定义域名，则可以设置。http://ali-oss.iocoder.cn
         // 默认北京的 endpoint
         config.setEndpoint("oss-cn-beijing.aliyuncs.com");

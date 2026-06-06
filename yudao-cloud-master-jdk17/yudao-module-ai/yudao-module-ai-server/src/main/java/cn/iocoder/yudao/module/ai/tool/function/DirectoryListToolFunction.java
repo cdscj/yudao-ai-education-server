@@ -37,7 +37,7 @@ public class DirectoryListToolFunction implements Function<DirectoryListToolFunc
          * 目录路径
          */
         @JsonProperty(required = true, value = "path")
-        @JsonPropertyDescription("目录路径，例如说：/Users/yunai")
+        @JsonPropertyDescription("目录路径，例如说：/path/to/user")
         private String path;
 
     }

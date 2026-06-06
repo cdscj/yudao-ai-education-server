@@ -73,7 +73,7 @@ spring:
     nacos:
       server-addr: 127.0.0.1:8848 # 改成你的 Nacos 地址
       username: nacos
-      password: nacos
+      password: 
       discovery:
         namespace: dev # 保持和 system 一样的 namespace 或新建
         group: DEFAULT_GROUP

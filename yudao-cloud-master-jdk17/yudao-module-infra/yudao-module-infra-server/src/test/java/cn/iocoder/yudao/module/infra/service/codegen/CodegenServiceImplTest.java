@@ -81,10 +81,10 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
         // 准备参数
         String author = randomString();
         CodegenCreateListReqVO reqVO = randomPojo(CodegenCreateListReqVO.class,
-                o -> o.setDataSourceConfigId(1L).setTableNames(Collections.singletonList("t_yunai")));
+                o -> o.setDataSourceConfigId(1L).setTableNames(Collections.singletonList("t_example")));
         // mock 方法（TableInfo）
         TableInfo tableInfo = mock(TableInfo.class);
-        when(databaseTableService.getTable(eq(1L), eq("t_yunai")))
+        when(databaseTableService.getTable(eq(1L), eq("t_example")))
                 .thenReturn(tableInfo);
         when(tableInfo.getComment()).thenReturn("芋艿");
         // mock 方法（TableInfo fields）
@@ -232,7 +232,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
     @Test
     public void testSyncCodegenFromDB() {
         // mock 数据（CodegenTableDO）
-        CodegenTableDO table = randomPojo(CodegenTableDO.class, o -> o.setTableName("t_yunai")
+        CodegenTableDO table = randomPojo(CodegenTableDO.class, o -> o.setTableName("t_example")
                 .setDataSourceConfigId(1L).setScene(CodegenSceneEnum.ADMIN.getScene()));
         codegenTableMapper.insert(table);
         CodegenColumnDO column01 = randomPojo(CodegenColumnDO.class, o -> o.setTableId(table.getId())
@@ -245,7 +245,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
         Long tableId = table.getId();
         // mock 方法（TableInfo）
         TableInfo tableInfo = mock(TableInfo.class);
-        when(databaseTableService.getTable(eq(1L), eq("t_yunai")))
+        when(databaseTableService.getTable(eq(1L), eq("t_example")))
                 .thenReturn(tableInfo);
         when(tableInfo.getComment()).thenReturn("芋艿");
         // mock 方法（TableInfo fields）
@@ -255,7 +255,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
         when(field03.getComment()).thenReturn("分类");
         List<TableField> fields = Arrays.asList(field01, field03);
         when(tableInfo.getFields()).thenReturn(fields);
-        when(databaseTableService.getTable(eq(1L), eq("t_yunai")))
+        when(databaseTableService.getTable(eq(1L), eq("t_example")))
                 .thenReturn(tableInfo);
         // mock 方法（CodegenTableDO）
         List<CodegenColumnDO> newColumns = randomPojoList(CodegenColumnDO.class, 2);
@@ -321,7 +321,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
     public void testGetCodegenTablePage() {
         // mock 数据
         CodegenTableDO tableDO = randomPojo(CodegenTableDO.class, o -> {
-            o.setTableName("t_yunai");
+            o.setTableName("t_example");
             o.setTableComment("芋艿");
             o.setClassName("SystemYunai");
             o.setCreateTime(buildTime(2021, 3, 10));
@@ -538,7 +538,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
         String comment = randomString();
         // mock 方法
         TableInfo tableInfo01 = mock(TableInfo.class);
-        when(tableInfo01.getName()).thenReturn("t_yunai");
+        when(tableInfo01.getName()).thenReturn("t_example");
         when(tableInfo01.getComment()).thenReturn("芋艿");
         TableInfo tableInfo02 = mock(TableInfo.class);
         when(tableInfo02.getName()).thenReturn("t_yunai_02");
@@ -556,7 +556,7 @@ public class CodegenServiceImplTest extends BaseDbUnitTest {
         List<DatabaseTableRespVO> result = codegenService.getDatabaseTableList(dataSourceConfigId, name, comment);
         // 断言
         assertEquals(1, result.size());
-        assertEquals("t_yunai", result.get(0).getName());
+        assertEquals("t_example", result.get(0).getName());
         assertEquals("芋艿", result.get(0).getComment());
     }
 
