@@ -1,0 +1,558 @@
+# 08 - 测试模式
+
+## 1. 测试层级架构
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ BaseMockitoUnitTest         纯 Mockito，无 Spring 上下文       │
+│   适用：Controller 测试（Mock Service）                        │
+│        工具类测试、简单业务逻辑测试                             │
+│   注解：@ExtendWith(MockitoExtension.class)                   │
+│   Mock：@Mock + @InjectMocks                                 │
+├──────────────────────────────────────────────────────────────┤
+│ BaseDbUnitTest              H2 内存数据库 + Spring 上下文      │
+│   适用：Service 测试（需要数据库）                              │
+│         DAO/Mapper 测试                                       │
+│   导入：MyBatis Plus + H2 数据源                               │
+│   Mock：@MockitoBean（外部服务）                               │
+├──────────────────────────────────────────────────────────────┤
+│ BaseDbAndRedisUnitTest      H2 + 嵌入式 Redis                  │
+│   适用：Service 测试（需要 DB + Redis）                         │
+│         Token/Cache 相关服务                                   │
+│   导入：同 BaseDbUnitTest + Redis/Redisson                    │
+├──────────────────────────────────────────────────────────────┤
+│ BaseRedisUnitTest           嵌入式 Redis 单测                  │
+│   适用：Redis 缓存逻辑测试（不需要 DB）                          │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## 2. 测试基类实现
+
+### 2.1 BaseMockitoUnitTest
+
+```java
+/**
+ * 纯 Mockito 单元测试
+ * 最快的测试类型，不需要任何 Spring 上下文
+ */
+@ExtendWith(MockitoExtension.class)
+public abstract class BaseMockitoUnitTest {
+}
+```
+
+使用示例：
+
+```java
+class OAuth2OpenControllerTest extends BaseMockitoUnitTest {
+
+    @Mock
+    private OAuth2TokenService oauth2TokenService;
+
+    @Mock
+    private OAuth2ClientService oauth2ClientService;
+
+    @InjectMocks
+    private OAuth2OpenController controller;
+
+    @Test
+    void testPostAccessToken_Success() {
+        // Given
+        when(oauth2ClientService.validClient(anyString(), anyString()))
+                .thenReturn(mockClient);
+        when(oauth2TokenService.createAccessToken(any()))
+                .thenReturn(mockToken);
+
+        // When
+        CommonResult<OAuth2AccessTokenRespVO> result =
+                controller.postAccessToken(mockRequest);
+
+        // Then
+        assertTrue(result.isSuccess());
+        verify(oauth2TokenService).createAccessToken(any());
+    }
+}
+```
+
+### 2.2 BaseDbUnitTest
+
+```java
+/**
+ * 基于 H2 内存数据库的测试
+ * 适用于 Service 层测试
+ */
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("unit-test")
+@Sql(scripts = "/sql/clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public abstract class BaseDbUnitTest {
+
+    @Import
+    protected static class Application {
+        // 数据源
+        @Import(YudaoDataSourceAutoConfiguration.class)
+        @Import(DataSourceAutoConfiguration.class)
+        @Import(DataSourceTransactionManagerAutoConfiguration.class)
+        @Import(DruidDataSourceAutoConfigure.class)
+
+        // SQL 初始化（兼容 lazy-init）
+        @Import(SqlInitializationTestConfiguration.class)
+
+        // MyBatis Plus
+        @Import(YudaoMybatisAutoConfiguration.class)
+        @Import(MybatisPlusAutoConfiguration.class)
+        @Import(MybatisPlusJoinAutoConfiguration.class)
+
+        // Hutool Spring 工具
+        @Import(SpringUtil.class)
+    }
+}
+```
+
+**关键设计：**
+- `@Sql(scripts = "/sql/clean.sql", AFTER_TEST_METHOD)` — 每个测试方法执行后清空所有表
+- `@Import` 而非 `@ComponentScan` — 精确控制 Spring 上下文大小
+- 被测试的 ServiceImpl 通过 `@Import` 在测试类上声明
+
+### 2.3 BaseDbAndRedisUnitTest
+
+```java
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@ActiveProfiles("unit-test")
+@Sql(scripts = "/sql/clean.sql", executionPhase = Sql.ExecutionPhase.AFTER_TEST_METHOD)
+public abstract class BaseDbAndRedisUnitTest {
+
+    @Import
+    protected static class Application {
+        // 包含 BaseDbUnitTest 的所有导入
+        // 额外导入 Redis 相关配置
+        @Import(RedisTestConfiguration.class)           // 启动嵌入式 Redis
+        @Import(YudaoRedisAutoConfiguration.class)
+        @Import(RedisAutoConfiguration.class)
+        @Import(RedissonAutoConfiguration.class)
+    }
+}
+```
+
+## 3. 测试资源配置
+
+### 3.1 application-unit-test.yaml
+
+```yaml
+spring:
+  main:
+    lazy-initialization: true              # 懒加载加速启动
+    banner-mode: off
+  datasource:
+    name: test
+    url: jdbc:h2:mem:testdb;MODE=MYSQL;DATABASE_TO_UPPER=false;NON_KEYWORDS=value;
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+    druid:
+      async-init: true
+      initial-size: 1
+  sql:
+    init:
+      schema-locations: classpath:/sql/create_tables.sql   # 建表 DDL
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 16379              # 非标准端口避免冲突
+      database: 0
+
+mybatis:
+  lazy-initialization: true
+
+mybatis-plus:
+  global-config:
+    db-config:
+      id-type: AUTO             # H2 使用自增 ID
+
+yudao:
+  info:
+    base-package: cn.iocoder.yudao.module   # 测试时指向 module 包
+```
+
+### 3.2 sql/create_tables.sql
+
+```sql
+-- 每个模块维护自己的建表语句
+CREATE TABLE IF NOT EXISTS system_dept (
+    id BIGINT GENERATED BY DEFAULT AS IDENTITY,
+    name VARCHAR(30) NOT NULL DEFAULT '',
+    parent_id BIGINT NOT NULL DEFAULT 0,
+    sort INT NOT NULL DEFAULT 0,
+    leader_user_id BIGINT,
+    phone VARCHAR(11) DEFAULT '',
+    email VARCHAR(50) DEFAULT '',
+    status INT NOT NULL DEFAULT 1,
+    creator VARCHAR(64) DEFAULT '',
+    create_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updater VARCHAR(64) DEFAULT '',
+    update_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted BIT NOT NULL DEFAULT FALSE,
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    PRIMARY KEY (id)
+);
+-- ... 更多表
+```
+
+### 3.3 sql/clean.sql
+
+```sql
+-- 每个测试方法后执行，清空所有数据
+DELETE FROM system_dept;
+DELETE FROM system_role;
+DELETE FROM system_menu;
+DELETE FROM system_users;
+DELETE FROM system_user_role;
+-- ... 所有表
+```
+
+## 4. Service 测试写法
+
+### 4.1 标准 Service 测试
+
+```java
+/**
+ * DeptServiceImpl 的单元测试
+ */
+class DeptServiceImplTest extends BaseDbUnitTest {
+
+    // 导入被测试的 Service 实现
+    @Import(DeptServiceImpl.class)
+
+    // 内部依赖：直接注入真实 Mapper
+    @Resource
+    private DeptMapper deptMapper;
+
+    // 被测试对象
+    @Resource
+    private DeptService deptService;
+
+    @Test
+    void testCreateDept() {
+        // 1. 准备数据
+        DeptSaveReqVO reqVO = randomPojo(DeptSaveReqVO.class, o -> {
+            o.setParentId(DeptDO.PARENT_ID_ROOT);
+            o.setName("测试部门");
+            o.setStatus(CommonStatusEnum.ENABLE.getStatus());
+        });
+
+        // 2. 执行
+        Long id = deptService.createDept(reqVO);
+
+        // 3. 验证结果
+        assertNotNull(id);
+        DeptDO dept = deptMapper.selectById(id);
+        assertPojoEquals(reqVO, dept, "id");
+        assertEquals(reqVO.getName(), dept.getName());
+    }
+
+    @Test
+    void testCreateDept_DuplicateName() {
+        // 1. 准备：先插入一个部门
+        DeptDO existing = randomPojo(DeptDO.class, o -> {
+            o.setName("测试部门");
+            o.setParentId(DeptDO.PARENT_ID_ROOT);
+        });
+        deptMapper.insert(existing);
+
+        // 2. 准备：尝试创建同名部门
+        DeptSaveReqVO reqVO = randomPojo(DeptSaveReqVO.class, o -> {
+            o.setParentId(DeptDO.PARENT_ID_ROOT);
+            o.setName("测试部门");
+        });
+
+        // 3. 执行并断言异常
+        assertServiceException(
+            () -> deptService.createDept(reqVO),
+            DEPT_NAME_DUPLICATE
+        );
+    }
+
+    @Test
+    void testGetDeptList() {
+        // 1. 插入测试数据
+        DeptDO dept1 = randomPojo(DeptDO.class, o -> o.setName("研发部"));
+        deptMapper.insert(dept1);
+        DeptDO dept2 = randomPojo(DeptDO.class, o -> o.setName("市场部"));
+        deptMapper.insert(dept2);
+
+        // 2. 查询
+        DeptListReqVO reqVO = new DeptListReqVO();
+        reqVO.setName("研发");
+        List<DeptDO> list = deptService.getDeptList(reqVO);
+
+        // 3. 验证
+        assertEquals(1, list.size());
+        assertEquals("研发部", list.get(0).getName());
+    }
+}
+```
+
+### 4.2 带外部依赖 Mock 的 Service 测试
+
+```java
+/**
+ * AdminUserServiceImpl 的单元测试
+ * 对外部服务使用 @MockitoBean
+ */
+class AdminUserServiceImplTest extends BaseDbUnitTest {
+
+    @Import(AdminUserServiceImpl.class)
+
+    @Resource
+    private AdminUserMapper userMapper;
+
+    // 被测试对象
+    @Resource
+    private AdminUserService userService;
+
+    // ========== Mock 外部依赖 ==========
+
+    @MockitoBean
+    private DeptService deptService;           // 其他模块的 Service
+
+    @MockitoBean
+    private PermissionService permissionService;
+
+    @MockitoBean
+    private PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    private FileApi fileApi;                   // 其他模块的 Feign API
+
+    // ========== 测试方法 ==========
+
+    @Test
+    void testCreateUser() {
+        // When
+        UserSaveReqVO reqVO = randomPojo(UserSaveReqVO.class, o -> {
+            o.setEmail("test@example.com");
+            o.setMobile("15601691300");
+        });
+
+        // 配置 Mock 行为
+        when(passwordEncoder.encode(anyString()))
+                .thenReturn("$2a$10$encrypted_password");
+        when(deptService.getDept(anyLong()))
+                .thenReturn(randomPojo(DeptDO.class));
+
+        // 执行
+        Long userId = userService.createUser(reqVO);
+
+        // 验证 Service 被调用了
+        verify(deptService).getDept(reqVO.getDeptId());
+        verify(passwordEncoder).encode(reqVO.getPassword());
+
+        // 验证数据库
+        AdminUserDO user = userMapper.selectById(userId);
+        assertNotNull(user);
+        assertEquals("test@example.com", user.getEmail());
+    }
+
+    @Test
+    void testCreateUser_UsernameExists() {
+        // 1. 先创建一个用户
+        AdminUserDO existing = randomPojo(AdminUserDO.class, o ->
+                o.setUsername("admin"));
+        userMapper.insert(existing);
+
+        // 2. 尝试创建同名用户
+        UserSaveReqVO reqVO = randomPojo(UserSaveReqVO.class, o ->
+                o.setUsername("admin"));
+
+        // 3. 断言抛出 ServiceException
+        assertServiceException(
+            () -> userService.createUser(reqVO),
+            USER_USERNAME_EXISTS
+        );
+    }
+
+    @Test
+    void testImportUsers() {
+        // Mock：通过 argThat 验证回调参数
+        doNothing().when(deptService).handleTenantInfo(
+            argThat(handler -> {
+                handler.handle(1L);
+                return true;
+            })
+        );
+
+        List<UserImportVO> importList = Arrays.asList(
+            randomPojo(UserImportVO.class, o -> o.setUsername("user1")),
+            randomPojo(UserImportVO.class, o -> o.setUsername("user2"))
+        );
+
+        UserImportRespVO result = userService.importUsers(importList, true);
+
+        assertEquals(2, result.getCreateUsernames().size());
+        assertEquals(2, userMapper.selectCount());
+    }
+}
+```
+
+## 5. 测试工具类
+
+### 5.1 RandomUtils — 随机测试数据生成
+
+```java
+public class RandomUtils {
+
+    private static final PodamFactory FACTORY;
+
+    static {
+        PodamFactoryImpl factory = new PodamFactoryImpl();
+        // 自定义类型制造器
+        factory.getStrategy().addOrReplaceTypeManufacturer(
+            String.class, new StringTypeManufacturer());           // 随机 10 字符
+        factory.getStrategy().addOrReplaceTypeManufacturer(
+            Integer.class, new IntegerTypeManufacturer());         // status/type → 0-127
+        factory.getStrategy().addOrReplaceTypeManufacturer(
+            BigDecimal.class, new BigDecimalTypeManufacturer());   // 限制 DECIMAL(10,2)
+        factory.getStrategy().addOrReplaceTypeManufacturer(
+            LocalDateTime.class, new LocalDateTimeTypeManufacturer());
+        factory.getStrategy().addOrReplaceTypeManufacturer(
+            Boolean.class, new BooleanTypeManufacturer());         // deleted → false
+        FACTORY = factory;
+    }
+
+    // ========== 核心方法 ==========
+
+    /** 生成随机 POJO，支持 Consumer 自定义字段 */
+    public static <T> T randomPojo(Class<T> clazz, Consumer<T>... consumers) {
+        T pojo = FACTORY.manufacturePojo(clazz);
+        for (Consumer<T> consumer : consumers) {
+            consumer.accept(pojo);
+        }
+        return pojo;
+    }
+
+    /** 生成随机 POJO 列表 */
+    public static <T> List<T> randomPojoList(Class<T> clazz, Consumer<T>... consumers) {
+        return IntStream.range(0, 5)
+                .mapToObj(i -> randomPojo(clazz, consumers))
+                .collect(Collectors.toList());
+    }
+
+    // ========== 快捷方法 ==========
+    public static String randomString() { return cn.hutool.core.util.RandomUtil.randomString(10); }
+    public static Long randomLongId() { ... }
+    public static Integer randomCommonStatus() { return RandomUtil.randomInt(0, 2); }
+    public static String randomEmail() { return randomString() + "@example.com"; }
+    public static String randomMobile() { return "156" + RandomUtil.randomNumbers(8); }
+    public static String randomURL() { return "https://" + randomString() + ".com"; }
+}
+```
+
+**使用技巧：**
+
+```java
+// 基本用法
+DeptDO dept = randomPojo(DeptDO.class);
+
+// 覆盖特定字段
+DeptDO dept = randomPojo(DeptDO.class, o -> {
+    o.setName("研发部");
+    o.setParentId(0L);
+    o.setStatus(CommonStatusEnum.ENABLE.getStatus());
+});
+
+// 生成列表
+List<DeptDO> deptList = randomPojoList(DeptDO.class, o ->
+    o.setParentId(parentId));
+```
+
+### 5.2 AssertUtils — 断言工具
+
+```java
+public class AssertUtils {
+
+    /**
+     * 反射对比两个 POJO 是否相等
+     * 逐个字段比较，不是 equals()
+     */
+    public static <T> void assertPojoEquals(T expected, T actual, String... ignoreFields) {
+        Set<String> ignoreSet = new HashSet<>(Arrays.asList(ignoreFields));
+        // 遍历 expected 的所有字段，逐一与 actual 比较
+        for (Field field : expected.getClass().getDeclaredFields()) {
+            if (ignoreSet.contains(field.getName())) continue;
+            field.setAccessible(true);
+            Object expectedValue = field.get(expected);
+            Object actualValue = field.get(actual);
+            assertEquals(expectedValue, actualValue,
+                "Field " + field.getName() + " mismatch");
+        }
+    }
+
+    /**
+     * 断言抛出 ServiceException 且错误码匹配
+     */
+    public static void assertServiceException(
+            Executable executable, ErrorCode errorCode, Object... messageParams) {
+        ServiceException exception = assertThrows(ServiceException.class, executable);
+        assertEquals(errorCode.getCode(), exception.getCode());
+        if (messageParams.length > 0) {
+            assertEquals(StrUtil.format(errorCode.getMsg(), messageParams),
+                         exception.getMessage());
+        }
+    }
+
+    /**
+     * 反射判断两个 POJO 是否字段级相等（不抛异常，返回 boolean）
+     */
+    public static boolean isPojoEquals(Object expected, Object actual,
+                                        String... ignoreFields) {
+        // ... 类似 assertPojoEquals，但返回 boolean
+    }
+}
+```
+
+## 6. 测试反模式（避免事项）
+
+| 反模式 | 原因 | 正确做法 |
+|--------|------|----------|
+| `@SpringBootTest` 不加限制 | 加载整个应用上下文，极慢 | 用 `@Import` 精确导入需要的 Bean |
+| 硬编码测试数据 | 难以维护，测试间可能冲突 | 使用 `randomPojo()` + Consumer 覆盖 |
+| 测试间共享可变数据 | 测试执行顺序不确定 | 每个测试独立准备数据，`@Sql` 清理 |
+| Mock 所有依赖 | 过度 Mock，测试不真实 | DB 操作使用 H2 真实测试 |
+| `@Autowired` 装配 | 不需要扫描整个上下文 | `@Resource` 精确注入 |
+| 忽略异常路径测试 | 只测快乐路径 | `assertServiceException()` 测异常 |
+| 测试依赖外部服务 | 不稳定、慢 | `@MockitoBean` Mock 外部依赖 |
+
+## 7. 快速创建新测试的步骤
+
+1. **选择基类**
+   - 纯逻辑 → `BaseMockitoUnitTest`
+   - 需要数据库 → `BaseDbUnitTest`
+   - 需要 DB + Redis → `BaseDbAndRedisUnitTest`
+
+2. **创建测试类**
+   ```java
+   class OrderServiceImplTest extends BaseDbUnitTest {
+
+       @Import(OrderServiceImpl.class)
+
+       @Resource
+       private OrderMapper orderMapper;
+
+       @Resource
+       private OrderService orderService;
+
+       @MockitoBean
+       private DeptApi deptApi;         // 外部 RPC
+
+       @MockitoBean
+       private UserApi userApi;         // 外部 RPC
+
+       @Test
+       void testCreateOrder() { ... }
+   }
+   ```
+
+3. **编写测试方法（AAA 模式）**
+   ```
+   Arrange  → 准备测试数据和 Mock 行为
+   Act      → 执行被测试的方法
+   Assert   → 验证结果和交互
+   ```

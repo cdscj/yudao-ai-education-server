@@ -14,6 +14,8 @@ import cn.iocoder.yudao.module.ai.framework.ai.core.model.siliconflow.SiliconFlo
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.siliconflow.SiliconFlowChatModel;
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.suno.api.SunoApi;
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.xinghuo.XingHuoChatModel;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelRouteConfig;
+import cn.iocoder.yudao.module.ai.framework.ai.core.memory.MemoryConfig;
 import cn.iocoder.yudao.module.ai.framework.ai.core.webserch.AiWebSearchClient;
 import cn.iocoder.yudao.module.ai.framework.ai.core.webserch.bocha.AiBoChaWebSearchClient;
 import cn.iocoder.yudao.module.ai.tool.method.PersonService;
@@ -42,6 +44,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.util.List;
 import java.util.Optional;
@@ -52,11 +55,12 @@ import java.util.Optional;
  * @author fansili
  */
 @Configuration
-@EnableConfigurationProperties({ YudaoAiProperties.class,
+@EnableConfigurationProperties({ YudaoAiProperties.class, AiModelRouteConfig.class, MemoryConfig.class,
         QdrantVectorStoreProperties.class, // 解析 Qdrant 配置
         RedisVectorStoreProperties.class, // 解析 Redis 配置
         MilvusVectorStoreProperties.class, MilvusServiceClientProperties.class // 解析 Milvus 配置
 })
+@EnableScheduling // 启用定时任务，用于模型健康检查
 @Slf4j
 public class AiAutoConfiguration {
 

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/tj-exam-master/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-aopdemo/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/tj-auth-common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/tj-auth-gateway-sdk/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/tj-auth-resource-sdk/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-auth/tj-auth-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-course/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-data/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-exam/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-gateway/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-learning/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-media/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-message/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-message/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-message/tj-message-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-message/tj-message-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-message/tj-message-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-pay/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-pay/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-pay/tj-pay-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-pay/tj-pay-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-pay/tj-pay-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-promotion/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-remark/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-search/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-trade/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-user/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/tj-exam-master/tj-xxljobDemo/src/main/java" charset="UTF-8" />
+  </component>
+</project>

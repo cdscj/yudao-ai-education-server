@@ -29,13 +29,34 @@ public interface AiChatMessageService {
     AiChatMessageSendRespVO sendMessage(AiChatMessageSendReqVO sendReqVO, Long userId);
 
     /**
-     * 发送消息
+     * 发送消息（流式）
      *
      * @param sendReqVO 发送信息
      * @param userId 用户编号
      * @return 发送结果
      */
     Flux<CommonResult<AiChatMessageSendRespVO>> sendChatMessageStream(AiChatMessageSendReqVO sendReqVO, Long userId);
+
+    /**
+     * 发送消息（流式纯文本 SSE）
+     *
+     * <p>与 {@link #sendChatMessageStream} 不同，本方法每个事件只返回纯文本 chunk，
+     * 不再包裹 CommonResult + 完整 VO 对象，前端直接拼接即可实时显示。</p>
+     *
+     * <p>返回格式为 SSE 标准事件流，每个 {@link String} 是一行 SSE 数据（不含 "data:" 前缀，
+     * 由 Spring MVC 自动添加）:</p>
+     * <pre>
+     *   data: {"type":"metadata","sendId":1,"receiveId":2,"segments":[...]}
+     *   data: 你
+     *   data: 好
+     *   data: [DONE]
+     * </pre>
+     *
+     * @param sendReqVO 发送信息
+     * @param userId 用户编号
+     * @return SSE 纯文本事件流
+     */
+    Flux<String> sendChatMessageStreamPlain(AiChatMessageSendReqVO sendReqVO, Long userId);
 
     /**
      * 获得指定对话的消息列表

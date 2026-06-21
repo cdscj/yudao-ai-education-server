@@ -214,6 +214,19 @@ public class AiModelServiceImpl implements AiModelService {
         return SimpleVectorStore.class;
     }
 
+    @Override
+    public List<AiModelDO> getFallbackModels(Integer type, Long excludeModelId) {
+        return modelMapper.selectListByStatusAndType(
+                CommonStatusEnum.ENABLE.getStatus(), type, null)
+                .stream()
+                .filter(m -> !m.getId().equals(excludeModelId))
+                .filter(m -> m.getSort() != null)
+                .sorted((a, b) -> Integer.compare(
+                        a.getSort() != null ? a.getSort() : 0,
+                        b.getSort() != null ? b.getSort() : 0))
+                .toList();
+    }
+
     // TODO @lesan：是不是返回 Llm 对象会好点哈？
     @Override
     public void getLLmProvider4Tinyflow(Tinyflow tinyflow, Long modelId) {

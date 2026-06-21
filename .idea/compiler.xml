@@ -45,8 +45,8 @@
         <module name="yudao-spring-boot-starter-rpc" />
         <module name="yudao-module-infra-server" />
         <module name="yudao-server" />
-        <module name="yudao-module-ai-server" />
         <module name="yudao-module-mp-api" />
+        <module name="yudao-module-ai-server" />
         <module name="yudao-module-trade-server" />
         <module name="yudao-spring-boot-starter-biz-tenant" />
         <module name="yudao-spring-boot-starter-websocket" />

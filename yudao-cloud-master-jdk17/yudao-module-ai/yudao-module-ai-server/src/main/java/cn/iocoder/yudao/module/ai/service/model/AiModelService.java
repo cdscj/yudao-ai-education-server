@@ -145,4 +145,15 @@ public interface AiModelService {
      */
     void getLLmProvider4Tinyflow(Tinyflow tinyflow, Long modelId);
 
+    /**
+     * 获取 fallback 模型列表（排除指定模型，按优先级排序）
+     *
+     * 用于模型网关在主模型失败时自动切换备用模型
+     *
+     * @param type            模型类型
+     * @param excludeModelId  需排除的模型ID
+     * @return fallback 模型列表
+     */
+    List<AiModelDO> getFallbackModels(Integer type, Long excludeModelId);
+
 }

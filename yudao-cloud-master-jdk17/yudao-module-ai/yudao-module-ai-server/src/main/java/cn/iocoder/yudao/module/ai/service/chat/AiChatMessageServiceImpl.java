@@ -432,6 +432,132 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         }).onErrorResume(error -> Flux.just(error(ErrorCodeConstants.CHAT_STREAM_ERROR)));
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class, timeout = 120)
+    public Flux<String> sendChatMessageStreamPlain(AiChatMessageSendReqVO sendReqVO, Long userId) {
+        // 1.1 校验对话存在
+        AiChatConversationDO conversation = chatConversationService
+                .validateChatConversationExists(sendReqVO.getConversationId());
+        if (ObjUtil.notEqual(conversation.getUserId(), userId)) {
+            throw exception(CHAT_CONVERSATION_NOT_EXISTS);
+        }
+        // 1.2 敏感词检测
+        String sensitiveWord = sensitiveWordService.checkSensitiveWord(sendReqVO.getContent());
+        if (sensitiveWord != null) {
+            throw exception(SENSITIVE_WORD_DETECTED);
+        }
+        // 1.3 配额检查
+        userQuotaService.checkAndDeductQuota(userId, 1);
+        // 1.4 校验模型
+        List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
+        AiModelDO model = modalService.validateModel(conversation.getModelId());
+        StreamingChatModel chatModel = modalService.getChatModel(model.getId());
+
+        // 2.1 知识库召回
+        List<AiKnowledgeSegmentSearchRespBO> knowledgeSegments = recallKnowledgeSegment(
+                sendReqVO.getContent(), conversation);
+
+        // 2.2 联网搜索
+        AiWebSearchResponse webSearchResponse = Boolean.TRUE.equals(sendReqVO.getUseSearch()) && webSearchClient != null ?
+                webSearchClient.search(new AiWebSearchRequest().setQuery(sendReqVO.getContent())
+                        .setSummary(true).setCount(WEB_SEARCH_COUNT)) : null;
+
+        // 3. 插入 user 消息
+        AiChatMessageDO userMessage = createChatMessage(conversation.getId(), null, model,
+                userId, conversation.getRoleId(), MessageType.USER, sendReqVO.getContent(), sendReqVO.getUseContext(),
+                null, sendReqVO.getAttachmentUrls(), null);
+
+        // 4.1 插入 assistant 消息
+        AiChatMessageDO assistantMessage = createChatMessage(conversation.getId(), userMessage.getId(), model,
+                userId, conversation.getRoleId(), MessageType.ASSISTANT, "", sendReqVO.getUseContext(),
+                knowledgeSegments, null, webSearchResponse);
+
+        // 4.2 构建 Prompt
+        Prompt prompt = buildPrompt(conversation, historyMessages, knowledgeSegments, webSearchResponse, model, sendReqVO);
+        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
+
+        // 4.3 构建元数据事件（知识库 + 联网搜索 + 消息ID）
+        Map<Long, AiKnowledgeDocumentDO> documentMap = TenantUtils.executeIgnore(() ->
+                knowledgeDocumentService.getKnowledgeDocumentMap(
+                        convertSet(knowledgeSegments, AiKnowledgeSegmentSearchRespBO::getDocumentId)));
+        List<AiChatMessageRespVO.KnowledgeSegment> segments = BeanUtils.toBean(knowledgeSegments,
+                AiChatMessageRespVO.KnowledgeSegment.class, segment -> {
+                    AiKnowledgeDocumentDO document = documentMap.get(segment.getDocumentId());
+                    segment.setDocumentName(document != null ? document.getName() : null);
+                });
+
+        String metadataJson = cn.iocoder.yudao.framework.common.util.json.JsonUtils.toJsonString(Map.of(
+                "sendId", userMessage.getId(),
+                "receiveId", assistantMessage.getId(),
+                "segments", segments != null ? segments : List.of(),
+                "webSearchPages", webSearchResponse != null && webSearchResponse.getLists() != null
+                        ? webSearchResponse.getLists() : List.of()
+        ));
+
+        // 4.4 流式返回纯文本
+        StringBuffer contentBuffer = new StringBuffer();
+        StringBuffer reasoningContentBuffer = new StringBuffer();
+        final Long finalConversationId = conversation.getId();
+        final AiModelDO finalModel = model;
+        final Long finalUserMessageId = userMessage.getId();
+
+        // 首个事件：元数据
+        Flux<String> metadataFlux = Flux.just(metadataJson);
+
+        // 后续事件：纯文本 chunk
+        Flux<String> contentFlux = streamResponse
+                .map(chunk -> {
+                    String newContent = AiUtils.getChatResponseContent(chunk);
+                    if (StrUtil.isNotEmpty(newContent)) {
+                        contentBuffer.append(newContent);
+                        return newContent;
+                    }
+                    return ""; // 空 chunk（如 reasoning only）
+                })
+                .filter(s -> !s.isEmpty()) // 过滤掉空字符串
+                .concatWith(Flux.just("[DONE]")) // 结束标记
+                .doOnComplete(() -> {
+                    TenantUtils.executeIgnore(() -> {
+                        String fullContent = contentBuffer.toString();
+                        chatMessageMapper.updateById(
+                                new AiChatMessageDO().setId(assistantMessage.getId()).setContent(fullContent)
+                                        .setReasoningContent(reasoningContentBuffer.toString()));
+                        recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                                sendReqVO.getContent(), fullContent, true, null);
+                    });
+                })
+                .doOnError(throwable -> {
+                    log.error("[sendChatMessageStreamPlain][userId({}) 发生异常]", userId, throwable);
+                    TenantUtils.executeIgnore(() -> {
+                        if (StrUtil.isNotEmpty(contentBuffer)) {
+                            String partialContent = contentBuffer.toString();
+                            chatMessageMapper.updateById(new AiChatMessageDO().setId(assistantMessage.getId())
+                                    .setContent(partialContent));
+                            recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                                    sendReqVO.getContent(), partialContent, false, throwable.getMessage());
+                        } else {
+                            chatMessageMapper.deleteById(assistantMessage.getId());
+                            recordChatStatistics(userId, finalConversationId, finalModel, finalUserMessageId,
+                                    sendReqVO.getContent(), "", false, throwable.getMessage());
+                        }
+                    });
+                })
+                .doOnCancel(() -> {
+                    log.info("[sendChatMessageStreamPlain][userId({}) 取消请求]", userId);
+                    TenantUtils.executeIgnore(() -> {
+                        if (StrUtil.isNotEmpty(contentBuffer)) {
+                            chatMessageMapper.updateById(new AiChatMessageDO().setId(assistantMessage.getId())
+                                    .setContent(contentBuffer.toString()));
+                        } else {
+                            chatMessageMapper.deleteById(assistantMessage.getId());
+                        }
+                    });
+                })
+                .onErrorResume(error -> Flux.just("[ERROR] " + ErrorCodeConstants.CHAT_STREAM_ERROR.getMsg()));
+
+        return metadataFlux.concatWith(contentFlux);
+    }
+
     private List<AiKnowledgeSegmentSearchRespBO> recallKnowledgeSegment(String content,
             AiChatConversationDO conversation) {
         // 1. 查询聊天角色

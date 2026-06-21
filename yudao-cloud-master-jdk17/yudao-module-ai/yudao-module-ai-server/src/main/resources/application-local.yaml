@@ -84,6 +84,14 @@ spring:
       database: 0 # 数据库索引
       username: default
       password: ${DB_PASSWORD:root}
+
+  # Elasticsearch 配置（BM25 关键词检索）
+  elasticsearch:
+    uris: http://127.0.0.1:9200
+    username: elastic
+    password: ${DB_PASSWORD:root}
+    connection-timeout: 3s
+    socket-timeout: 10s
   #    password: ${DB_PASSWORD:root} # 密码，建议生产环境开启
 
 --- #################### MQ 消息队列相关配置 ####################

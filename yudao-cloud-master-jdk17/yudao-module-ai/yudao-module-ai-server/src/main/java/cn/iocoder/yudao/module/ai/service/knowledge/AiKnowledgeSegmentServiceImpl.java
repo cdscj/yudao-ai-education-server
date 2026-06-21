@@ -15,10 +15,13 @@ import cn.iocoder.yudao.module.ai.controller.admin.knowledge.vo.segment.AiKnowle
 import cn.iocoder.yudao.module.ai.dal.dataobject.knowledge.AiKnowledgeDO;
 import cn.iocoder.yudao.module.ai.dal.dataobject.knowledge.AiKnowledgeDocumentDO;
 import cn.iocoder.yudao.module.ai.dal.dataobject.knowledge.AiKnowledgeSegmentDO;
+import cn.iocoder.yudao.module.ai.dal.dataobject.knowledge.AiKnowledgeSegmentDocument;
 import cn.iocoder.yudao.module.ai.dal.mysql.knowledge.AiKnowledgeSegmentMapper;
+import cn.iocoder.yudao.module.ai.dal.mysql.knowledge.AiKnowledgeSegmentRepository;
 import cn.iocoder.yudao.module.ai.enums.AiDocumentSplitStrategyEnum;
 import cn.iocoder.yudao.module.ai.service.knowledge.bo.AiKnowledgeSegmentSearchReqBO;
 import cn.iocoder.yudao.module.ai.service.knowledge.bo.AiKnowledgeSegmentSearchRespBO;
+import cn.iocoder.yudao.module.ai.service.knowledge.search.HybridSearchService;
 import cn.iocoder.yudao.module.ai.service.knowledge.splitter.MarkdownQaSplitter;
 import cn.iocoder.yudao.module.ai.service.knowledge.splitter.SemanticTextSplitter;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
@@ -82,6 +85,12 @@ public class AiKnowledgeSegmentServiceImpl implements AiKnowledgeSegmentService 
 
     @Resource
     private TokenCountEstimator tokenCountEstimator;
+
+    @Autowired(required = false)
+    private AiKnowledgeSegmentRepository esRepository;
+
+    @Resource
+    private HybridSearchService hybridSearchService;
 
     @Autowired(required = false) // 由于 spring.ai.model.rerank 配置项，可以关闭 RerankModel 的功能，所以这里只能不强制注入
     private RerankModel rerankModel;
@@ -155,6 +164,19 @@ public class AiKnowledgeSegmentServiceImpl implements AiKnowledgeSegmentService 
         // 3. 删除向量存储中的段落
         VectorStore vectorStore = getVectorStoreById(segments.get(0).getKnowledgeId());
         vectorStore.delete(convertList(segments, AiKnowledgeSegmentDO::getVectorId));
+
+        // 4. 批量删除 ES 文档
+        if (esRepository != null) {
+            try {
+                List<String> esIds = convertList(segments, AiKnowledgeSegmentDO::getVectorId)
+                        .stream().filter(StrUtil::isNotEmpty).toList();
+                if (!esIds.isEmpty()) {
+                    esRepository.deleteAllById(esIds);
+                }
+            } catch (Exception e) {
+                log.warn("[deleteKnowledgeSegmentByDocumentId][ES批量删除失败: {}]", e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -202,26 +224,51 @@ public class AiKnowledgeSegmentServiceImpl implements AiKnowledgeSegmentService 
 
     private void writeVectorStore(VectorStore vectorStore, AiKnowledgeSegmentDO segmentDO, Document segment) {
         // 1. 向量存储
-        // 为什么要 toString 呢？因为部分 VectorStore 实现，不支持 Long 类型，例如说 QdrantVectorStore
         segment.getMetadata().put(VECTOR_STORE_METADATA_KNOWLEDGE_ID, segmentDO.getKnowledgeId().toString());
         segment.getMetadata().put(VECTOR_STORE_METADATA_DOCUMENT_ID, segmentDO.getDocumentId().toString());
         segment.getMetadata().put(VECTOR_STORE_METADATA_SEGMENT_ID, segmentDO.getId().toString());
         vectorStore.add(List.of(segment));
 
-        // 2. 更新向量 ID
+        // 2. 同步写入 ES（BM25 检索）
+        if (esRepository != null) {
+            try {
+                esRepository.save(AiKnowledgeSegmentDocument.builder()
+                        .id(segment.getId())  // 使用 vectorId 作为 ES 文档 ID
+                        .content(segmentDO.getContent())
+                        .knowledgeId(segmentDO.getKnowledgeId().toString())
+                        .documentId(segmentDO.getDocumentId().toString())
+                        .segmentId(segmentDO.getId())
+                        .build());
+            } catch (Exception e) {
+                log.warn("[writeVectorStore][ES写入失败，不影响主流程: segmentId={}, error={}]",
+                        segmentDO.getId(), e.getMessage());
+            }
+        }
+
+        // 3. 更新向量 ID
         segmentMapper.updateById(new AiKnowledgeSegmentDO().setId(segmentDO.getId()).setVectorId(segment.getId()));
     }
 
     private void deleteVectorStore(VectorStore vectorStore, AiKnowledgeSegmentDO segmentDO) {
-        // 1. 更新向量 ID
         if (StrUtil.isEmpty(segmentDO.getVectorId())) {
             return;
         }
+        // 1. 更新向量 ID
         segmentMapper.updateById(new AiKnowledgeSegmentDO().setId(segmentDO.getId())
                 .setVectorId(AiKnowledgeSegmentDO.VECTOR_ID_EMPTY));
 
         // 2. 删除向量
         vectorStore.delete(List.of(segmentDO.getVectorId()));
+
+        // 3. 同步删除 ES 文档
+        if (esRepository != null) {
+            try {
+                esRepository.deleteById(segmentDO.getVectorId());
+            } catch (Exception e) {
+                log.warn("[deleteVectorStore][ES删除失败，不影响主流程: vectorId={}, error={}]",
+                        segmentDO.getVectorId(), e.getMessage());
+            }
+        }
     }
 
     @Override
@@ -270,27 +317,96 @@ public class AiKnowledgeSegmentServiceImpl implements AiKnowledgeSegmentService 
         Integer topK = ObjUtil.defaultIfNull(reqBO.getTopK(), knowledge.getTopK());
         Double similarityThreshold = ObjUtil.defaultIfNull(reqBO.getSimilarityThreshold(), knowledge.getSimilarityThreshold());
 
-        // 1. 向量检索
-        int searchTopK = rerankModel != null ? topK * RERANK_RETRIEVAL_FACTOR : topK;
-        double searchSimilarityThreshold = rerankModel != null ? SIMILARITY_THRESHOLD_ACCEPT_ALL : similarityThreshold;
+        // 1. 向量检索（路1）
+        int searchTopK = topK * RERANK_RETRIEVAL_FACTOR;
         SearchRequest.Builder searchRequestBuilder = SearchRequest.builder()
                 .query(reqBO.getContent())
-                .topK(searchTopK).similarityThreshold(searchSimilarityThreshold)
+                .topK(searchTopK).similarityThreshold(SIMILARITY_THRESHOLD_ACCEPT_ALL)
                 .filterExpression(new FilterExpressionBuilder()
                         .eq(VECTOR_STORE_METADATA_KNOWLEDGE_ID, reqBO.getKnowledgeId().toString()).build());
-        List<Document> documents = vectorStore.similaritySearch(searchRequestBuilder.build());
-        if (CollUtil.isEmpty(documents)) {
-            return documents;
+        List<Document> vectorDocsRaw = vectorStore.similaritySearch(searchRequestBuilder.build());
+        final List<Document> vectorDocuments = CollUtil.isEmpty(vectorDocsRaw)
+                ? Collections.emptyList() : vectorDocsRaw;
+
+        // 2. ES BM25 检索（路2）
+        List<AiKnowledgeSegmentSearchRespBO> bm25Results = Collections.emptyList();
+        if (esRepository != null) {
+            try {
+                var esHits = esRepository.searchByContentAndKnowledgeId(
+                        reqBO.getContent(), reqBO.getKnowledgeId().toString());
+                if (esHits != null && esHits.hasSearchHits()) {
+                    bm25Results = esHits.getSearchHits().stream()
+                            .map(hit -> {
+                                AiKnowledgeSegmentDocument doc = hit.getContent();
+                                return new AiKnowledgeSegmentSearchRespBO()
+                                        .setId(doc.getSegmentId())
+                                        .setDocumentId(Long.valueOf(doc.getDocumentId()))
+                                        .setKnowledgeId(reqBO.getKnowledgeId())
+                                        .setContent(doc.getContent())
+                                        .setScore((double) hit.getScore());
+                            }).toList();
+                }
+            } catch (Exception e) {
+                log.warn("[searchDocument][ES检索失败，降级为纯向量检索: {}]", e.getMessage());
+            }
         }
 
-        // 2. Rerank 重排序
-        if (rerankModel != null) {
+        // 3. 构建向量检索结果（统一格式）
+        List<AiKnowledgeSegmentSearchRespBO> vectorResults = vectorDocuments.stream()
+                .map(doc -> {
+                    String segId = (String) doc.getMetadata().get(VECTOR_STORE_METADATA_SEGMENT_ID);
+                    String docId = (String) doc.getMetadata().get(VECTOR_STORE_METADATA_DOCUMENT_ID);
+                    return new AiKnowledgeSegmentSearchRespBO()
+                            .setId(segId != null ? Long.valueOf(segId) : null)
+                            .setDocumentId(docId != null ? Long.valueOf(docId) : null)
+                            .setKnowledgeId(reqBO.getKnowledgeId())
+                            .setContent(doc.getText())
+                            .setScore(doc.getScore());
+                }).toList();
+
+        // 4. RRF 融合向量 + BM25 结果
+        List<AiKnowledgeSegmentSearchRespBO> merged;
+        if (!bm25Results.isEmpty()) {
+            merged = hybridSearchService.hybridSearch(vectorResults, bm25Results,
+                    searchTopK, 0.7); // 向量权重 0.7，BM25 权重 0.3
+        } else {
+            merged = vectorResults;
+        }
+
+        // 5. 转回 Document 格式（保留向量库 ID 用于后续 DB 查询）
+        List<Document> documents = convertList(merged, bo -> {
+            Map<String, Object> metadata = new java.util.HashMap<>();
+            metadata.put(VECTOR_STORE_METADATA_KNOWLEDGE_ID, bo.getKnowledgeId().toString());
+            metadata.put(VECTOR_STORE_METADATA_DOCUMENT_ID,
+                    bo.getDocumentId() != null ? bo.getDocumentId().toString() : null);
+            metadata.put(VECTOR_STORE_METADATA_SEGMENT_ID,
+                    bo.getId() != null ? bo.getId().toString() : null);
+
+            // 查找对应的向量库文档 ID（用于后续 vectorId → segmentId 映射）
+            var vectorDoc = vectorDocuments.stream()
+                    .filter(d -> {
+                        String sid = (String) d.getMetadata().get(VECTOR_STORE_METADATA_SEGMENT_ID);
+                        return sid != null && sid.equals(bo.getId() != null ? bo.getId().toString() : "");
+                    }).findFirst().orElse(null);
+
+            // 使用向量库 ID 作为 Document ID（Spring AI Document ID 通过 constructor 设置）
+            String docId = vectorDoc != null ? vectorDoc.getId() : UUID.randomUUID().toString();
+            return Document.builder()
+                    .id(docId)
+                    .text(bo.getContent())
+                    .metadata(metadata)
+                    .build();
+        });
+
+        // 6. Rerank 重排序（保留原有逻辑）
+        if (rerankModel != null && CollUtil.isNotEmpty(documents)) {
             RerankResponse rerankResponse = rerankModel.call(new RerankRequest(reqBO.getContent(), documents,
                     DashScopeRerankOptions.builder().withTopN(topK).build()));
             documents = convertList(rerankResponse.getResults(),
                     documentWithScore -> documentWithScore.getScore() >= similarityThreshold
                             ? documentWithScore.getOutput() : null);
         }
+
         return documents;
     }
 

@@ -265,6 +265,12 @@
             <version>${spring-ai.version}</version>
         </dependency>
 
+        <!-- Elasticsearch：BM25 关键词检索 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
+
         <!-- TinyFlow：AI 工作流 -->
         <dependency>
             <groupId>dev.tinyflow</groupId>

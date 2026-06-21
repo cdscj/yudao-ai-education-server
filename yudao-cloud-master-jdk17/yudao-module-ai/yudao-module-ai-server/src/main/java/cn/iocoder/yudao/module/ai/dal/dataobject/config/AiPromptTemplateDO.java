@@ -65,4 +65,26 @@ public class AiPromptTemplateDO extends TenantBaseDO {
      */
     private Integer status;
 
+    /**
+     * 模板唯一标识码（用于A/B测试查找）
+     */
+    private String code;
+
+    /**
+     * 版本号
+     */
+    private Integer version;
+
+    /**
+     * A/B 测试分组
+     *
+     * A 组 / B 组 / NULL（不参与 A/B 测试）
+     */
+    private String abGroup;
+
+    /**
+     * 上一版本 ID（版本链）
+     */
+    private Long parentId;
+
 }

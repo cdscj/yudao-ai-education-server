@@ -97,4 +97,14 @@ public class AiChatConversationDO extends TenantBaseDO {
      */
     private Integer maxContexts;
 
+    /**
+     * 对话历史摘要（自动压缩旧消息生成）
+     */
+    private String summary;
+
+    /**
+     * 摘要更新时间
+     */
+    private LocalDateTime summaryUpdatedAt;
+
 }

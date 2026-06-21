@@ -72,6 +72,14 @@ public class AiChatMessageController {
         return chatMessageService.sendChatMessageStream(sendReqVO, getLoginUserId());
     }
 
+    @RateLimiter(time = 1, timeUnit = java.util.concurrent.TimeUnit.MINUTES, count = 30, keyResolver = UserRateLimiterKeyResolver.class, message = "发送消息过于频繁，请稍后再试")
+    @Operation(summary = "发送消息（纯文本流式SSE）",
+               description = "返回标准 SSE 事件流，每个事件为纯文本 chunk。首个事件为 metadata JSON（含消息ID/知识库/联网搜索结果），后续事件为纯文本，末尾为 [DONE]")
+    @PostMapping(value = "/send-stream-plain", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<String> sendChatMessageStreamPlain(@Valid @RequestBody AiChatMessageSendReqVO sendReqVO) {
+        return chatMessageService.sendChatMessageStreamPlain(sendReqVO, getLoginUserId());
+    }
+
     @PostMapping("/regenerate")
     @Operation(summary = "重新生成消息回复")
     @Parameter(name = "conversationId", required = true, description = "对话编号")
