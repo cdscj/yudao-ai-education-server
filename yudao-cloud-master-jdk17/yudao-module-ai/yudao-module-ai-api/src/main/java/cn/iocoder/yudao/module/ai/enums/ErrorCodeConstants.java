@@ -187,4 +187,18 @@ public interface ErrorCodeConstants {
     ErrorCode STUDY_PLAN_NOT_EXISTS = new ErrorCode(1_040_037_000, "学习计划不存在");
     ErrorCode STUDY_PLAN_ALREADY_ACTIVE = new ErrorCode(1_040_037_001, "已有进行中的计划");
     ErrorCode STUDY_PLAN_AI_GENERATE_FAIL = new ErrorCode(1_040_037_002, "AI 生成学习计划失败");
+
+    // ========== Agent 配置 1-040-038-000 ==========
+    ErrorCode AGENT_CONFIG_NOT_EXISTS = new ErrorCode(1_040_038_000, "Agent 配置不存在");
+    ErrorCode AGENT_CONFIG_DISABLE = new ErrorCode(1_040_038_001, "Agent({})已被禁用");
+    ErrorCode AGENT_CONFIG_NAME_DUPLICATE = new ErrorCode(1_040_038_002, "Agent 名称已存在");
+
+    // ========== Agent 会话 1-040-039-000 ==========
+    ErrorCode AGENT_CONVERSATION_NOT_EXISTS = new ErrorCode(1_040_039_000, "Agent 会话不存在");
+    ErrorCode AGENT_CONVERSATION_MODEL_ERROR = new ErrorCode(1_040_039_001, "Agent 会话模型配置不完整");
+
+    // ========== Agent 消息 1-040-040-000 ==========
+    ErrorCode AGENT_MESSAGE_NOT_EXISTS = new ErrorCode(1_040_040_000, "Agent 消息不存在");
+    ErrorCode AGENT_EXECUTION_ERROR = new ErrorCode(1_040_040_001, "Agent 执行异常: {}");
+    ErrorCode AGENT_TYPE_NOT_SUPPORTED = new ErrorCode(1_040_040_002, "不支持的 Agent 类型: {}");
 }
