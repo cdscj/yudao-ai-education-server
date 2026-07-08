@@ -1,16 +1,29 @@
 -- ============================================
 -- AI 教育模块增量升级脚本
 -- 在 ruoyi-vue-pro 数据库执行
+-- 所有语句均幂等，可重复执行
 -- ============================================
 
--- 1. 课程表增加 school_id（如果已执行可跳过）
-ALTER TABLE ai_course_schedule ADD COLUMN school_id bigint DEFAULT NULL COMMENT '学校编号' AFTER user_id;
-ALTER TABLE ai_course_schedule MODIFY COLUMN user_id bigint DEFAULT NULL COMMENT '用户编号';
-ALTER TABLE ai_course_schedule ADD KEY idx_school_id (school_id);
+-- 1. 课程表增加 school_id（幂等：列已存在则跳过）
+SET @db = DATABASE();
+SET @t = 'ai_course_schedule';
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@db AND TABLE_NAME=@t AND COLUMN_NAME='school_id') = 0,
+    'ALTER TABLE ai_course_schedule ADD COLUMN school_id bigint DEFAULT NULL COMMENT ''学校编号'' AFTER user_id', 'SELECT 1 AS skipped');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
--- 2. 辅导会话增加学科/知识点（如果已执行可跳过）
-ALTER TABLE ai_tutoring_session ADD COLUMN subject_id bigint DEFAULT NULL COMMENT '学科编号' AFTER context_json;
-ALTER TABLE ai_tutoring_session ADD COLUMN knowledge_tag_ids json DEFAULT NULL COMMENT '知识点标签' AFTER subject_id;
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=@db AND TABLE_NAME=@t AND INDEX_NAME='idx_school_id') = 0,
+    'ALTER TABLE ai_course_schedule ADD KEY idx_school_id (school_id)', 'SELECT 1 AS skipped');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 2. 辅导会话增加学科/知识点（幂等：列已存在则跳过）
+SET @t2 = 'ai_tutoring_session';
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@db AND TABLE_NAME=@t2 AND COLUMN_NAME='subject_id') = 0,
+    'ALTER TABLE ai_tutoring_session ADD COLUMN subject_id bigint DEFAULT NULL COMMENT ''学科编号'' AFTER context_json', 'SELECT 1 AS skipped');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF((SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=@db AND TABLE_NAME=@t2 AND COLUMN_NAME='knowledge_tag_ids') = 0,
+    'ALTER TABLE ai_tutoring_session ADD COLUMN knowledge_tag_ids json DEFAULT NULL COMMENT ''知识点标签'' AFTER subject_id', 'SELECT 1 AS skipped');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 3. Phase 1 新表
 CREATE TABLE IF NOT EXISTS `ai_subject_category` (
@@ -20,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `ai_subject_category` (
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), UNIQUE KEY `uk_code` (`code`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 学科分类';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学科分类';
 
 CREATE TABLE IF NOT EXISTS `ai_knowledge_tag` (
   `id` bigint NOT NULL AUTO_INCREMENT, `subject_id` bigint NOT NULL, `name` varchar(100) NOT NULL,
@@ -28,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `ai_knowledge_tag` (
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_subject_id` (`subject_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 知识点标签';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识点标签';
 
 CREATE TABLE IF NOT EXISTS `ai_question_bank` (
   `id` bigint NOT NULL AUTO_INCREMENT, `subject_id` bigint DEFAULT NULL, `knowledge_tag_ids` json DEFAULT NULL,
@@ -39,7 +52,7 @@ CREATE TABLE IF NOT EXISTS `ai_question_bank` (
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`),
   KEY `idx_subject_id` (`subject_id`), KEY `idx_question_type` (`question_type`), KEY `idx_difficulty` (`difficulty`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 题库';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 题库';
 
 CREATE TABLE IF NOT EXISTS `ai_wrong_answer_book` (
   `id` bigint NOT NULL AUTO_INCREMENT, `user_id` bigint NOT NULL, `question_id` bigint NOT NULL,
@@ -51,7 +64,7 @@ CREATE TABLE IF NOT EXISTS `ai_wrong_answer_book` (
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), UNIQUE KEY `uk_user_question` (`user_id`, `question_id`),
   KEY `idx_user_id` (`user_id`), KEY `idx_subject_id` (`subject_id`), KEY `idx_mastery_level` (`mastery_level`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 错题本';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 错题本';
 
 -- 4. Phase 2 新表
 CREATE TABLE IF NOT EXISTS `ai_homework` (
@@ -61,8 +74,9 @@ CREATE TABLE IF NOT EXISTS `ai_homework` (
   `max_redo_count` int DEFAULT '0', `publish_status` varchar(20) NOT NULL DEFAULT 'DRAFT', `publish_time` datetime DEFAULT NULL,
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_subject_id` (`subject_id`), KEY `idx_publish_status` (`publish_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 作业';
+  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`),
+  KEY `idx_subject_id` (`subject_id`), KEY `idx_publish_status` (`publish_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 作业';
 
 CREATE TABLE IF NOT EXISTS `ai_homework_submission` (
   `id` bigint NOT NULL AUTO_INCREMENT, `homework_id` bigint NOT NULL, `user_id` bigint NOT NULL,
@@ -71,9 +85,10 @@ CREATE TABLE IF NOT EXISTS `ai_homework_submission` (
   `redo_count` int NOT NULL DEFAULT '0', `duration_seconds` int DEFAULT NULL,
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), UNIQUE KEY `uk_homework_user` (`homework_id`, `user_id`),
+  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_homework_user` (`homework_id`, `user_id`),
   KEY `idx_user_id` (`user_id`), KEY `idx_grade_status` (`grade_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 作业提交';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 作业提交';
 
 CREATE TABLE IF NOT EXISTS `ai_exam` (
   `id` bigint NOT NULL AUTO_INCREMENT, `title` varchar(200) NOT NULL, `subject_id` bigint DEFAULT NULL, `description` text,
@@ -83,8 +98,9 @@ CREATE TABLE IF NOT EXISTS `ai_exam` (
   `allow_retake` bit(1) NOT NULL DEFAULT b'0', `max_retake_count` int DEFAULT '0',
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_subject_id` (`subject_id`), KEY `idx_publish_status` (`publish_status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 模拟考试';
+  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`),
+  KEY `idx_subject_id` (`subject_id`), KEY `idx_publish_status` (`publish_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 模拟考试';
 
 CREATE TABLE IF NOT EXISTS `ai_exam_record` (
   `id` bigint NOT NULL AUTO_INCREMENT, `exam_id` bigint NOT NULL, `user_id` bigint NOT NULL,
@@ -93,8 +109,9 @@ CREATE TABLE IF NOT EXISTS `ai_exam_record` (
   `duration_seconds` int DEFAULT NULL, `status` varchar(20) NOT NULL DEFAULT 'IN_PROGRESS', `retake_count` int NOT NULL DEFAULT '0',
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_exam_id` (`exam_id`), KEY `idx_user_id` (`user_id`), KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 考试记录';
+  `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`),
+  KEY `idx_exam_id` (`exam_id`), KEY `idx_user_id` (`user_id`), KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 考试记录';
 
 -- 5. Phase 3 新表
 CREATE TABLE IF NOT EXISTS `ai_notification` (
@@ -104,7 +121,7 @@ CREATE TABLE IF NOT EXISTS `ai_notification` (
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_user_id` (`user_id`), KEY `idx_is_read` (`is_read`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 消息通知';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 消息通知';
 
 CREATE TABLE IF NOT EXISTS `ai_study_plan` (
   `id` bigint NOT NULL AUTO_INCREMENT, `user_id` bigint NOT NULL, `title` varchar(200) NOT NULL,
@@ -115,10 +132,10 @@ CREATE TABLE IF NOT EXISTS `ai_study_plan` (
   `tenant_id` bigint NOT NULL DEFAULT '0', `creator` varchar(64) DEFAULT '', `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updater` varchar(64) DEFAULT '', `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` bit(1) NOT NULL DEFAULT b'0', PRIMARY KEY (`id`), KEY `idx_user_id` (`user_id`), KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 学习计划';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学习计划';
 
 -- ============================================
--- 初始化数据（可选）
+-- 初始化数据（幂等：INSERT IGNORE 自动跳过重复）
 -- ============================================
 INSERT IGNORE INTO ai_subject_category (name, code, parent_id, sort, status) VALUES
 ('高等数学', 'MATH', 0, 1, 0),

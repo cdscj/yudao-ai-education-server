@@ -18,7 +18,7 @@ public class WriteAgent extends ReActAgent {
     public String getAgentName() { return "写作智能体"; }
 
     @Override
-    protected String getSystemPrompt() {
+    public String getSystemPrompt() {
         return """
                 你是一个专业写作助手，擅长文案撰写、翻译和文字润色。
                 要求：

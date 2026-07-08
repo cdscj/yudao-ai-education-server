@@ -83,6 +83,18 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
             throw exception0(GlobalErrorCodeConstants.BAD_REQUEST.getCode(), "刷新令牌的客户端编号不正确");
         }
 
+        // 已过期的情况下，删除刷新令牌
+        if (DateUtils.isExpired(refreshTokenDO.getExpiresTime())) {
+            oauth2RefreshTokenMapper.deleteById(refreshTokenDO.getId());
+            throw exception0(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), "刷新令牌已过期");
+        }
+
+        // 检查 Redis 用户会话是否仍在7天有效期内（首次登录时创建，不续期）
+        if (!oauth2AccessTokenRedisDAO.hasUserSession(refreshTokenDO.getUserId(), refreshTokenDO.getUserType())) {
+            throw exception0(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(),
+                    "会话已过期（超过7天），请重新登录");
+        }
+
         // 移除相关的访问令牌
         List<OAuth2AccessTokenDO> accessTokenDOs = oauth2AccessTokenMapper.selectListByRefreshToken(refreshToken);
         if (CollUtil.isNotEmpty(accessTokenDOs)) {
@@ -90,13 +102,7 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
             oauth2AccessTokenRedisDAO.deleteList(convertSet(accessTokenDOs, OAuth2AccessTokenDO::getAccessToken));
         }
 
-        // 已过期的情况下，删除刷新令牌
-        if (DateUtils.isExpired(refreshTokenDO.getExpiresTime())) {
-            oauth2RefreshTokenMapper.deleteById(refreshTokenDO.getId());
-            throw exception0(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), "刷新令牌已过期");
-        }
-
-        // 创建访问令牌
+        // 创建新的访问令牌（会话不续期，7天上限从首次登录算起）
         return createOAuth2AccessToken(refreshTokenDO, clientDO);
     }
 
@@ -135,6 +141,12 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
         }
         if (DateUtils.isExpired(accessTokenDO.getExpiresTime())) {
             throw exception0(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), "访问令牌已过期");
+        }
+        // 延长访问令牌的 Redis TTL（不影响7天上限，上限由首次登录时的 user_session 控制）
+        try {
+            oauth2AccessTokenRedisDAO.extendTtl(accessTokenDO);
+        } catch (Exception e) {
+            // Redis 操作失败不影响主流程
         }
         return accessTokenDO;
     }
@@ -191,6 +203,8 @@ public class OAuth2TokenServiceImpl implements OAuth2TokenService {
         oauth2AccessTokenMapper.insert(accessTokenDO);
         // 记录到 Redis 中
         oauth2AccessTokenRedisDAO.set(accessTokenDO);
+        // 首次登录时创建用户会话（固定7天TTL，不续期）
+        oauth2AccessTokenRedisDAO.createUserSession(accessTokenDO.getUserId(), accessTokenDO.getUserType());
         return accessTokenDO;
     }
 

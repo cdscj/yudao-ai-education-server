@@ -11,6 +11,8 @@ public class AiWrongAnswerBookRespVO {
     private Long userId;
     private Long questionId;
     private Long subjectId;
+    private String questionTitle;     // 题目内容（从题库/练习题关联查询）
+    private String questionOptions;   // 选项（JSON）
     private String userAnswer;
     private String correctAnswer;
     private Boolean isCorrect;

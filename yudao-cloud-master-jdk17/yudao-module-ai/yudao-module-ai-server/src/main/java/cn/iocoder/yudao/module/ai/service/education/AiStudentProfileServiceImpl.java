@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.ai.dal.mysql.education.AiStudentProfileMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelGateway;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +22,6 @@ import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -45,6 +45,8 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
     private AiStudentProfileMapper studentProfileMapper;
     @Resource
     private AiModelService modelService;
+    @Resource
+    private AiModelGateway modelGateway;
 
     private static final int MAX_HISTORY_TURNS = 20;
 
@@ -110,43 +112,40 @@ public class AiStudentProfileServiceImpl implements AiStudentProfileService {
         profileRef[0].setConversationHistory(JSONUtil.toJsonStr(historyList));
         studentProfileMapper.updateById(profileRef[0]);
 
-        // 5. 流式推理 + 多模型 fallback（通过 AiUtils 统一管理）
-        return AiUtils.buildStreamWithFallback(models, model -> {
-            ChatModel chatModel = modelService.getChatModel(model.getId());
-            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                    model.getTemperature(), model.getMaxTokens());
-            Prompt prompt = new Prompt(messages, options);
+        // 5. 流式推理（通过 Gateway 获得重试+熔断+fallback 保护）
+        AiModelDO selectedModel = models.get(models.size() - 1);
+        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(selectedModel.getPlatform());
+        ChatOptions options = AiUtils.buildChatOptions(platform, selectedModel.getModel(),
+                selectedModel.getTemperature(), selectedModel.getMaxTokens());
+        Prompt prompt = new Prompt(messages, options);
 
-            StringBuffer contentBuffer = new StringBuffer();
-            return chatModel.stream(prompt).map(chunk -> {
-                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-                contentBuffer.append(newContent);
-                return success(newContent);
-            }).doOnError(throwable -> {
-                log.error("[chatBuildProfile][userId({}) 模型({}) 流式输出失败]", userId, model.getId(), throwable);
-            }).doOnComplete(() -> {
-                TenantUtils.executeIgnore(() -> {
-                    String fullContent = contentBuffer.toString();
-                    // 保存 assistant 消息到历史
-                    Map<String, Object> assistantTurn = new HashMap<>();
-                    assistantTurn.put("role", "assistant");
-                    assistantTurn.put("content", fullContent);
-                    historyList.add(assistantTurn);
-                    while (historyList.size() > MAX_HISTORY_TURNS * 2) {
-                        historyList.remove(0);
-                    }
-                    String updatedHistoryJson = JSONUtil.toJsonStr(historyList);
-                    // 提取画像 JSON（可能为空）
-                    String jsonStr = extractJsonFromContent(fullContent);
-                    if (jsonStr != null) {
-                        profileRef[0].setProfileJson(jsonStr);
-                    }
-                    profileRef[0].setConversationHistory(updatedHistoryJson);
-                    studentProfileMapper.updateById(profileRef[0]);
+        StringBuffer contentBuffer = new StringBuffer();
+        return modelGateway.chatStream(selectedModel.getId(), prompt)
+                .map(text -> {
+                    contentBuffer.append(text);
+                    return success(text);
+                }).doOnError(throwable -> {
+                    log.error("[chatBuildProfile][userId({}) 模型({}) 流式输出失败]",
+                            userId, selectedModel.getId(), throwable);
+                }).doOnComplete(() -> {
+                    TenantUtils.executeIgnore(() -> {
+                        String fullContent = contentBuffer.toString();
+                        Map<String, Object> assistantTurn = new HashMap<>();
+                        assistantTurn.put("role", "assistant");
+                        assistantTurn.put("content", fullContent);
+                        historyList.add(assistantTurn);
+                        while (historyList.size() > MAX_HISTORY_TURNS * 2) {
+                            historyList.remove(0);
+                        }
+                        String updatedHistoryJson = JSONUtil.toJsonStr(historyList);
+                        String jsonStr = extractJsonFromContent(fullContent);
+                        if (jsonStr != null) {
+                            profileRef[0].setProfileJson(jsonStr);
+                        }
+                        profileRef[0].setConversationHistory(updatedHistoryJson);
+                        studentProfileMapper.updateById(profileRef[0]);
+                    });
                 });
-            });
-        }, "chatBuildProfile", EDUCATION_STREAM_ERROR);
     }
 
     @Override

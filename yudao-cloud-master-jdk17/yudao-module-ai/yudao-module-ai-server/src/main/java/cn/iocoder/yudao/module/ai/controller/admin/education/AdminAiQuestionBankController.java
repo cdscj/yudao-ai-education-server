@@ -76,4 +76,17 @@ public class AdminAiQuestionBankController {
                 subjectId, questionType, difficulty, keyword, status, pageNo, pageSize),
                 AiQuestionBankRespVO.class));
     }
+
+    @PostMapping("/ai-generate")
+    @Operation(summary = "AI 生成题目")
+    @PreAuthorize("@ss.hasPermission('ai:question-bank:create')")
+    public CommonResult<Integer> aiGenerate(
+            @RequestParam("subjectId") Long subjectId,
+            @RequestParam("questionType") String questionType,
+            @RequestParam(value = "difficulty", defaultValue = "3") Integer difficulty,
+            @RequestParam(value = "count", defaultValue = "5") Integer count,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "knowledgeTagIds", required = false) String knowledgeTagIds) {
+        return success(questionBankService.generateQuestionByAI(subjectId, questionType, difficulty, count, keyword, knowledgeTagIds));
+    }
 }

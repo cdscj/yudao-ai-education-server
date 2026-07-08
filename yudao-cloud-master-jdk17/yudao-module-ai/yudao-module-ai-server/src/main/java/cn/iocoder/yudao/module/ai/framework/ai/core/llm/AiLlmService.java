@@ -34,7 +34,7 @@ public class AiLlmService {
         return modelGateway.chatStream(model.getId(), systemPrompt, userInput, context);
     }
 
-    /**
+    /**         
      * 同步对话（使用默认 Chat 模型）
      */
     public String chatSync(String systemPrompt, String userInput, String context) {

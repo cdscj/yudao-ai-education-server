@@ -57,7 +57,7 @@ async function load() {
   loading.value = true
   try {
     const r = await activityApi.feed({ pageNo:1, pageSize:30 })
-    activities.value = r.data?.data || []
+    activities.value = r.data?.data?.list || []
   } catch (e) {
     console.error('Failed to load activities:', e)
     ElMessage.error('加载动态失败，请重试')

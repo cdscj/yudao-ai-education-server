@@ -1,48 +1,51 @@
-﻿-- ========================================
+-- ========================================
 -- yudao-module-ai 数据库表结构
+-- 字符集: utf8mb4
 -- ========================================
 
--- 1. AI API 秘钥
-CREATE TABLE `ai_api_key` (
+SET NAMES utf8mb4;
+
+-- 1. AI API 密钥
+CREATE TABLE IF NOT EXISTS `ai_api_key` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `name` varchar(100) NOT NULL COMMENT '名称',
   `api_key` varchar(500) NOT NULL COMMENT '密钥',
   `platform` varchar(50) NOT NULL COMMENT '平台',
   `url` varchar(500) DEFAULT NULL COMMENT 'API 地址',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI API 秘钥';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI API 密钥';
 
 -- 2. AI 模型
-CREATE TABLE `ai_model` (
+CREATE TABLE IF NOT EXISTS `ai_model` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
-  `key_id` bigint NOT NULL COMMENT 'API 秘钥编号',
+  `key_id` bigint NOT NULL COMMENT 'API 密钥编号',
   `name` varchar(100) NOT NULL COMMENT '模型名称',
   `model` varchar(100) NOT NULL COMMENT '模型标志',
   `platform` varchar(50) NOT NULL COMMENT '平台',
   `type` tinyint NOT NULL COMMENT '类型',
-  `sort` int NOT NULL DEFAULT '0' COMMENT '排序�?,
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `sort` int NOT NULL DEFAULT '0' COMMENT '排序',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `temperature` double DEFAULT NULL COMMENT '温度参数',
-  `max_tokens` int DEFAULT NULL COMMENT '最�?Token 数量',
-  `max_contexts` int DEFAULT NULL COMMENT '上下文最�?Message 数量',
+  `max_tokens` int DEFAULT NULL COMMENT '最大 Token 数量',
+  `max_contexts` int DEFAULT NULL COMMENT '上下文最大 Message 数量',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 模型';
 
 -- 3. AI 聊天角色
-CREATE TABLE `ai_chat_role` (
+CREATE TABLE IF NOT EXISTS `ai_chat_role` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `name` varchar(100) NOT NULL COMMENT '角色名称',
   `avatar` varchar(500) DEFAULT NULL COMMENT '角色头像',
@@ -52,40 +55,40 @@ CREATE TABLE `ai_chat_role` (
   `user_id` bigint DEFAULT NULL COMMENT '用户编号',
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
   `knowledge_ids` json DEFAULT NULL COMMENT '引用的知识库编号列表',
-  `tool_ids` json DEFAULT NULL COMMENT '引用的工具编号列�?,
-  `mcp_client_names` json DEFAULT NULL COMMENT '引用�?MCP Client 名字列表',
+  `tool_ids` json DEFAULT NULL COMMENT '引用的工具编号列表',
+  `mcp_client_names` json DEFAULT NULL COMMENT '引用的 MCP Client 名字列表',
   `public_status` bit(1) NOT NULL DEFAULT b'1' COMMENT '是否公开',
-  `sort` int NOT NULL DEFAULT '0' COMMENT '排序�?,
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `sort` int NOT NULL DEFAULT '0' COMMENT '排序',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 聊天角色';
 
 -- 4. AI 工具
-CREATE TABLE `ai_tool` (
+CREATE TABLE IF NOT EXISTS `ai_tool` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '工具编号',
   `name` varchar(100) NOT NULL COMMENT '工具名称',
   `description` varchar(500) DEFAULT NULL COMMENT '工具描述',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 工具';
 
 -- 5. AI 聊天对话
-CREATE TABLE `ai_chat_conversation` (
+CREATE TABLE IF NOT EXISTS `ai_chat_conversation` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT 'ID 编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
-  `title` varchar(255) DEFAULT '新对�? COMMENT '对话标题',
+  `title` varchar(255) DEFAULT '新对话' COMMENT '对话标题',
   `pinned` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否置顶',
   `pinned_time` datetime DEFAULT NULL COMMENT '置顶时间',
   `role_id` bigint DEFAULT NULL COMMENT '角色编号',
@@ -93,112 +96,113 @@ CREATE TABLE `ai_chat_conversation` (
   `model` varchar(100) NOT NULL COMMENT '模型标志',
   `system_message` text COMMENT '角色设定',
   `temperature` double DEFAULT NULL COMMENT '温度参数',
-  `max_tokens` int DEFAULT NULL COMMENT '最�?Token 数量',
-  `max_contexts` int DEFAULT NULL COMMENT '上下文最�?Message 数量',
+  `max_tokens` int DEFAULT NULL COMMENT '最大 Token 数量',
+  `max_contexts` int DEFAULT NULL COMMENT '上下文最大 Message 数量',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 聊天对话';
 
 -- 6. AI 聊天消息
-CREATE TABLE `ai_chat_message` (
+CREATE TABLE IF NOT EXISTS `ai_chat_message` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `conversation_id` bigint NOT NULL COMMENT '对话编号',
   `reply_id` bigint DEFAULT NULL COMMENT '回复消息编号',
-  `type` varchar(50) NOT NULL COMMENT '消息类型(USER/ASSISTANT)',
+  `type` varchar(50) NOT NULL COMMENT '消息类型（USER/ASSISTANT）',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `role_id` bigint DEFAULT NULL COMMENT '角色编号',
   `model` varchar(100) DEFAULT NULL COMMENT '模型标志',
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
   `content` longtext COMMENT '聊天内容',
   `reasoning_content` longtext COMMENT '推理内容',
-  `use_context` bit(1) DEFAULT NULL COMMENT '是否携带上下�?,
-  `segment_ids` json DEFAULT NULL COMMENT '知识库段落编号数�?,
+  `use_context` bit(1) DEFAULT NULL COMMENT '是否携带上下文',
+  `segment_ids` json DEFAULT NULL COMMENT '知识库段落编号数组',
   `web_search_pages` json DEFAULT NULL COMMENT '联网搜索网页内容数组',
   `attachment_urls` json DEFAULT NULL COMMENT '附件 URL 数组',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 聊天消息';
 
--- 7. AI 知识�?CREATE TABLE `ai_knowledge` (
+-- 7. AI 知识库
+CREATE TABLE IF NOT EXISTS `ai_knowledge` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
-  `name` varchar(100) NOT NULL COMMENT '知识库名�?,
-  `description` varchar(500) DEFAULT NULL COMMENT '知识库描�?,
+  `name` varchar(100) NOT NULL COMMENT '知识库名称',
+  `description` varchar(500) DEFAULT NULL COMMENT '知识库描述',
   `embedding_model_id` bigint DEFAULT NULL COMMENT '向量模型编号',
   `embedding_model` varchar(100) DEFAULT NULL COMMENT '模型标识',
   `top_k` int DEFAULT NULL COMMENT 'topK',
-  `similarity_threshold` double DEFAULT NULL COMMENT '相似度阈�?,
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `similarity_threshold` double DEFAULT NULL COMMENT '相似度阈值',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识�?;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识库';
 
--- 8. AI 知识�?文档
-CREATE TABLE `ai_knowledge_document` (
+-- 8. AI 知识库文档
+CREATE TABLE IF NOT EXISTS `ai_knowledge_document` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
-  `knowledge_id` bigint NOT NULL COMMENT '知识库编�?,
+  `knowledge_id` bigint NOT NULL COMMENT '知识库编号',
   `name` varchar(255) NOT NULL COMMENT '文档名称',
   `url` varchar(500) DEFAULT NULL COMMENT '文件 URL',
   `content` longtext COMMENT '内容',
   `content_length` int DEFAULT NULL COMMENT '文档长度',
   `tokens` int DEFAULT NULL COMMENT '文档 token 数量',
-  `segment_max_tokens` int DEFAULT NULL COMMENT '分片最�?Token �?,
+  `segment_max_tokens` int DEFAULT NULL COMMENT '分片最大 Token 数',
   `retrieval_count` int NOT NULL DEFAULT '0' COMMENT '召回次数',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-启用 1-禁用)',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-启用 1-禁用）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识�?文档';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识库文档';
 
--- 9. AI 知识�?文档分段
-CREATE TABLE `ai_knowledge_segment` (
+-- 9. AI 知识库文档分段
+CREATE TABLE IF NOT EXISTS `ai_knowledge_segment` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
-  `knowledge_id` bigint NOT NULL COMMENT '知识库编�?,
+  `knowledge_id` bigint NOT NULL COMMENT '知识库编号',
   `document_id` bigint NOT NULL COMMENT '文档编号',
   `content` longtext NOT NULL COMMENT '切片内容',
   `content_length` int DEFAULT NULL COMMENT '切片内容长度',
   `vector_id` varchar(255) DEFAULT '' COMMENT '向量库的编号',
   `tokens` int DEFAULT NULL COMMENT 'token 数量',
   `retrieval_count` int NOT NULL DEFAULT '0' COMMENT '召回次数',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-启用 1-禁用)',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-启用 1-禁用）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识�?文档分段';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识库文档分段';
 
 -- 10. AI 绘画
-CREATE TABLE `ai_image` (
+CREATE TABLE IF NOT EXISTS `ai_image` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
-  `prompt` text NOT NULL COMMENT '提示�?,
+  `prompt` text NOT NULL COMMENT '提示词',
   `platform` varchar(50) NOT NULL COMMENT '平台',
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
   `model` varchar(100) DEFAULT NULL COMMENT '模型标识',
   `width` int DEFAULT NULL COMMENT '图片宽度',
   `height` int DEFAULT NULL COMMENT '图片高度',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '生成状�?,
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '生成状态',
   `finish_time` datetime DEFAULT NULL COMMENT '完成时间',
   `error_message` varchar(500) DEFAULT NULL COMMENT '绘画错误信息',
   `pic_url` varchar(500) DEFAULT NULL COMMENT '图片地址',
@@ -207,16 +211,16 @@ CREATE TABLE `ai_image` (
   `buttons` json DEFAULT NULL COMMENT 'mj buttons 按钮',
   `task_id` varchar(255) DEFAULT NULL COMMENT '任务编号',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 绘画';
 
 -- 11. AI 音乐
-CREATE TABLE `ai_music` (
+CREATE TABLE IF NOT EXISTS `ai_music` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `title` varchar(255) DEFAULT NULL COMMENT '音乐名称',
@@ -224,9 +228,9 @@ CREATE TABLE `ai_music` (
   `image_url` varchar(500) DEFAULT NULL COMMENT '图片地址',
   `audio_url` varchar(500) DEFAULT NULL COMMENT '音频地址',
   `video_url` varchar(500) DEFAULT NULL COMMENT '视频地址',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '音乐状�?,
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '音乐状态',
   `generate_mode` tinyint DEFAULT NULL COMMENT '生成模式',
-  `description` text COMMENT '描述�?,
+  `description` text COMMENT '描述',
   `platform` varchar(50) DEFAULT NULL COMMENT '平台',
   `model` varchar(100) DEFAULT NULL COMMENT '模型',
   `tags` json DEFAULT NULL COMMENT '音乐风格标签',
@@ -235,35 +239,35 @@ CREATE TABLE `ai_music` (
   `task_id` varchar(255) DEFAULT NULL COMMENT '任务编号',
   `error_message` varchar(500) DEFAULT NULL COMMENT '错误信息',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 音乐';
 
 -- 12. AI 思维导图
-CREATE TABLE `ai_mind_map` (
+CREATE TABLE IF NOT EXISTS `ai_mind_map` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `platform` varchar(50) NOT NULL COMMENT '平台',
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
   `model` varchar(100) DEFAULT NULL COMMENT '模型',
   `prompt` text NOT NULL COMMENT '生成内容提示',
-  `generated_content` longtext COMMENT '生成的内�?,
+  `generated_content` longtext COMMENT '生成的内容',
   `error_message` varchar(500) DEFAULT NULL COMMENT '错误信息',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 思维导图';
 
 -- 13. AI 写作
-CREATE TABLE `ai_write` (
+CREATE TABLE IF NOT EXISTS `ai_write` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `type` tinyint NOT NULL COMMENT '写作类型',
@@ -271,78 +275,80 @@ CREATE TABLE `ai_write` (
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
   `model` varchar(100) DEFAULT NULL COMMENT '模型',
   `prompt` text NOT NULL COMMENT '生成内容提示',
-  `generated_content` longtext COMMENT '生成的内�?,
+  `generated_content` longtext COMMENT '生成的内容',
   `original_content` longtext COMMENT '原文',
-  `length` int DEFAULT NULL COMMENT '长度提示�?,
-  `format` int DEFAULT NULL COMMENT '格式提示�?,
-  `tone` int DEFAULT NULL COMMENT '语气提示�?,
-  `language` int DEFAULT NULL COMMENT '语言提示�?,
+  `length` int DEFAULT NULL COMMENT '长度提示',
+  `format` int DEFAULT NULL COMMENT '格式提示',
+  `tone` int DEFAULT NULL COMMENT '语气提示',
+  `language` int DEFAULT NULL COMMENT '语言提示',
   `error_message` varchar(500) DEFAULT NULL COMMENT '错误信息',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 写作';
 
--- 14. AI 工作�?CREATE TABLE `ai_workflow` (
+-- 14. AI 工作流
+CREATE TABLE IF NOT EXISTS `ai_workflow` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
-  `name` varchar(100) NOT NULL COMMENT '工作流名�?,
-  `code` varchar(100) NOT NULL COMMENT '工作流标�?,
-  `graph` longtext COMMENT '工作流模�?JSON 数据',
+  `name` varchar(100) NOT NULL COMMENT '工作流名称',
+  `code` varchar(100) NOT NULL COMMENT '工作流标识',
+  `graph` longtext COMMENT '工作流模板 JSON 数据',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注',
-  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状�?0-开�?1-关闭)',
+  `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态（0-开启 1-关闭）',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 工作�?;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 工作流';
 
 -- ========================================
--- AI 教学模块（education�?-- ========================================
+-- AI 教学模块（education）
+-- ========================================
 
 -- 15. AI 智能辅导会话
-CREATE TABLE `ai_tutoring_session` (
+CREATE TABLE IF NOT EXISTS `ai_tutoring_session` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `title` varchar(255) DEFAULT NULL COMMENT '会话标题',
   `question` text COMMENT '初始问题',
-  `context_json` longtext COMMENT '上下�?JSON',
-  `status` varchar(20) DEFAULT NULL COMMENT '状�?,
+  `context_json` longtext COMMENT '上下文 JSON',
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 智能辅导会话';
 
 -- 16. AI 智能辅导消息
-CREATE TABLE `ai_tutoring_message` (
+CREATE TABLE IF NOT EXISTS `ai_tutoring_message` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `session_id` bigint NOT NULL COMMENT '会话编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
-  `role` varchar(20) NOT NULL COMMENT '角色(user/assistant/system)',
+  `role` varchar(20) NOT NULL COMMENT '角色（user/assistant/system）',
   `content_type` varchar(50) DEFAULT NULL COMMENT '内容类型',
   `content` longtext COMMENT '内容',
   `content_json` longtext COMMENT '内容 JSON',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 智能辅导消息';
 
 -- 17. AI 学生画像
-CREATE TABLE `ai_student_profile` (
+CREATE TABLE IF NOT EXISTS `ai_student_profile` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `major` varchar(100) DEFAULT NULL COMMENT '专业',
@@ -350,25 +356,25 @@ CREATE TABLE `ai_student_profile` (
   `learning_goals` text COMMENT '学习目标',
   `knowledge_level` varchar(50) DEFAULT NULL COMMENT '知识水平',
   `learning_preferences` varchar(500) DEFAULT NULL COMMENT '学习偏好',
-  `weak_points` text COMMENT '薄弱�?,
-  `strong_points` text COMMENT '优势�?,
+  `weak_points` text COMMENT '薄弱点',
+  `strong_points` text COMMENT '优势项',
   `study_history` longtext COMMENT '学习历史',
   `learning_speed` int DEFAULT NULL COMMENT '学习速度',
   `preferred_resource_types` varchar(500) DEFAULT NULL COMMENT '偏好资源类型',
   `study_time_preference` varchar(100) DEFAULT NULL COMMENT '学习时间偏好',
-  `status` varchar(20) DEFAULT NULL COMMENT '状�?,
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
   `profile_json` longtext COMMENT '画像 JSON',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学生画像';
 
 -- 18. AI 学习路径
-CREATE TABLE `ai_learning_path` (
+CREATE TABLE IF NOT EXISTS `ai_learning_path` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `profile_id` bigint DEFAULT NULL COMMENT '画像编号',
@@ -377,21 +383,21 @@ CREATE TABLE `ai_learning_path` (
   `description` text COMMENT '描述',
   `total_nodes` int NOT NULL DEFAULT '0' COMMENT '总节点数',
   `completed_nodes` int NOT NULL DEFAULT '0' COMMENT '已完成节点数',
-  `status` varchar(20) DEFAULT NULL COMMENT '状�?,
-  `start_time` datetime DEFAULT NULL COMMENT '开始时�?,
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
+  `start_time` datetime DEFAULT NULL COMMENT '开始时间',
   `expected_end_time` datetime DEFAULT NULL COMMENT '预计结束时间',
   `completed_time` datetime DEFAULT NULL COMMENT '完成时间',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学习路径';
 
 -- 19. AI 学习路径节点
-CREATE TABLE `ai_learning_path_node` (
+CREATE TABLE IF NOT EXISTS `ai_learning_path_node` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `path_id` bigint NOT NULL COMMENT '路径编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
@@ -399,20 +405,20 @@ CREATE TABLE `ai_learning_path_node` (
   `description` text COMMENT '描述',
   `content` longtext COMMENT '内容',
   `sort_order` int NOT NULL DEFAULT '0' COMMENT '排序',
-  `status` varchar(20) DEFAULT NULL COMMENT '状�?,
-  `start_time` datetime DEFAULT NULL COMMENT '开始时�?,
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
+  `start_time` datetime DEFAULT NULL COMMENT '开始时间',
   `completed_time` datetime DEFAULT NULL COMMENT '完成时间',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学习路径节点';
 
 -- 20. AI 学习资源
-CREATE TABLE `ai_learning_resource` (
+CREATE TABLE IF NOT EXISTS `ai_learning_resource` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `profile_id` bigint DEFAULT NULL COMMENT '画像编号',
@@ -424,21 +430,21 @@ CREATE TABLE `ai_learning_resource` (
   `difficulty` varchar(50) DEFAULT NULL COMMENT '难度',
   `related_course_id` bigint DEFAULT NULL COMMENT '关联课程编号',
   `course_name` varchar(255) DEFAULT NULL COMMENT '课程名称',
-  `status` varchar(20) DEFAULT NULL COMMENT '状�?,
+  `status` varchar(20) DEFAULT NULL COMMENT '状态',
   `error_message` varchar(500) DEFAULT NULL COMMENT '错误信息',
   `progress` int DEFAULT NULL COMMENT '进度',
   `feedback` text COMMENT '反馈',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学习资源';
 
 -- 21. AI 学习评估
-CREATE TABLE `ai_learning_evaluation` (
+CREATE TABLE IF NOT EXISTS `ai_learning_evaluation` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `profile_id` bigint DEFAULT NULL COMMENT '画像编号',
@@ -450,9 +456,9 @@ CREATE TABLE `ai_learning_evaluation` (
   `suggestion` text COMMENT '建议',
   `evaluation_json` longtext COMMENT '评估 JSON',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
-  `creator` varchar(64) DEFAULT '' COMMENT '创建�?,
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  `updater` varchar(64) DEFAULT '' COMMENT '更新�?,
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE
@@ -463,7 +469,7 @@ CREATE TABLE `ai_learning_evaluation` (
 -- ========================================
 
 -- 22. AI 提示词模板
-CREATE TABLE `ai_prompt_template` (
+CREATE TABLE IF NOT EXISTS `ai_prompt_template` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `name` varchar(100) NOT NULL COMMENT '模板名称',
   `category` varchar(50) DEFAULT NULL COMMENT '模板分类',
@@ -483,7 +489,7 @@ CREATE TABLE `ai_prompt_template` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 提示词模板';
 
 -- 23. AI 敏感词
-CREATE TABLE `ai_sensitive_word` (
+CREATE TABLE IF NOT EXISTS `ai_sensitive_word` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `word` varchar(100) NOT NULL COMMENT '敏感词',
   `level` tinyint NOT NULL DEFAULT '0' COMMENT '敏感等级（0-一般 1-中等 2-严重）',
@@ -500,7 +506,7 @@ CREATE TABLE `ai_sensitive_word` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 敏感词';
 
 -- 24. AI API 调用统计
-CREATE TABLE `ai_api_statistics` (
+CREATE TABLE IF NOT EXISTS `ai_api_statistics` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `model_id` bigint DEFAULT NULL COMMENT '模型编号',
@@ -525,7 +531,7 @@ CREATE TABLE `ai_api_statistics` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI API 调用统计';
 
 -- 25. AI 用户调用配额
-CREATE TABLE `ai_user_quota` (
+CREATE TABLE IF NOT EXISTS `ai_user_quota` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `quota_type` tinyint NOT NULL DEFAULT '0' COMMENT '配额类型（0-按次 1-按Token 2-按时长）',
@@ -548,7 +554,7 @@ CREATE TABLE `ai_user_quota` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 用户调用配额';
 
 -- 26. AI 对话日志（管理审计用）
-CREATE TABLE `ai_conversation_log` (
+CREATE TABLE IF NOT EXISTS `ai_conversation_log` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `conversation_id` bigint NOT NULL COMMENT '对话编号',
@@ -572,7 +578,7 @@ CREATE TABLE `ai_conversation_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 对话日志';
 
 -- 27. AI 系统配置
-CREATE TABLE `ai_system_config` (
+CREATE TABLE IF NOT EXISTS `ai_system_config` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `config_key` varchar(100) NOT NULL COMMENT '配置键',
   `config_value` varchar(500) NOT NULL COMMENT '配置值',
@@ -596,7 +602,7 @@ CREATE TABLE `ai_system_config` (
 -- ========================================
 
 -- 28. AI 签到记录
-CREATE TABLE `ai_check_in_record` (
+CREATE TABLE IF NOT EXISTS `ai_check_in_record` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `check_in_date` date NOT NULL COMMENT '签到日期',
@@ -617,7 +623,7 @@ CREATE TABLE `ai_check_in_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 签到记录';
 
 -- 29. AI 用户积分
-CREATE TABLE `ai_user_points` (
+CREATE TABLE IF NOT EXISTS `ai_user_points` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `total_points` int NOT NULL DEFAULT '0' COMMENT '总积分',
@@ -636,7 +642,7 @@ CREATE TABLE `ai_user_points` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 用户积分';
 
 -- 30. AI 好友关系
-CREATE TABLE `ai_friend` (
+CREATE TABLE IF NOT EXISTS `ai_friend` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `friend_user_id` bigint NOT NULL COMMENT '好友用户编号',
@@ -655,7 +661,7 @@ CREATE TABLE `ai_friend` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 好友关系';
 
 -- 31. AI 关注关系
-CREATE TABLE `ai_follow` (
+CREATE TABLE IF NOT EXISTS `ai_follow` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号（关注者）',
   `follow_user_id` bigint NOT NULL COMMENT '被关注用户编号',
@@ -673,7 +679,7 @@ CREATE TABLE `ai_follow` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 关注关系';
 
 -- 32. AI 排行榜记录
-CREATE TABLE `ai_leaderboard_record` (
+CREATE TABLE IF NOT EXISTS `ai_leaderboard_record` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `period_type` varchar(20) NOT NULL COMMENT '周期类型（WEEKLY/MONTHLY）',
@@ -691,7 +697,7 @@ CREATE TABLE `ai_leaderboard_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 排行榜记录';
 
 -- 33. AI 学习目标
-CREATE TABLE `ai_learning_goal` (
+CREATE TABLE IF NOT EXISTS `ai_learning_goal` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `goal_type` varchar(50) NOT NULL COMMENT '目标类型（STUDY_MINUTES/RESOURCE_COUNT/CHECK_IN_STREAK/POINTS_TARGET）',
@@ -713,14 +719,18 @@ CREATE TABLE `ai_learning_goal` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学习目标';
 
 -- 34. AI 用户动态
-CREATE TABLE `ai_user_activity` (
+CREATE TABLE IF NOT EXISTS `ai_user_activity` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `activity_type` varchar(50) NOT NULL COMMENT '动态类型（CHECK_IN/COMPLETE_RESOURCE/EARN_POINTS/LEVEL_UP/ADD_FRIEND/COMPLETE_GOAL）',
   `content` varchar(500) DEFAULT NULL COMMENT '动态内容',
   `ref_id` bigint DEFAULT NULL COMMENT '关联对象编号',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
+  `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updater` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `deleted` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否删除',
   PRIMARY KEY (`id`) USING BTREE,
   KEY `idx_user_id` (`user_id`),
   KEY `idx_create_time` (`create_time`)
@@ -731,7 +741,7 @@ CREATE TABLE `ai_user_activity` (
 -- ========================================
 
 -- 35. AI 学校信息
-CREATE TABLE `ai_school` (
+CREATE TABLE IF NOT EXISTS `ai_school` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `name` varchar(200) NOT NULL COMMENT '学校名称',
   `province` varchar(50) DEFAULT NULL COMMENT '省份',
@@ -749,7 +759,7 @@ CREATE TABLE `ai_school` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学校信息';
 
 -- 36. AI 学生学校关联
-CREATE TABLE `ai_student_school` (
+CREATE TABLE IF NOT EXISTS `ai_student_school` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `school_id` bigint NOT NULL COMMENT '学校编号',
@@ -771,7 +781,7 @@ CREATE TABLE `ai_student_school` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学生学校关联';
 
 -- 37. AI 课程表
-CREATE TABLE `ai_course_schedule` (
+CREATE TABLE IF NOT EXISTS `ai_course_schedule` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint DEFAULT NULL COMMENT '用户编号（管理员导入时可为 NULL）',
   `school_id` bigint DEFAULT NULL COMMENT '学校编号（管理员批量导入时关联）',
@@ -802,7 +812,7 @@ CREATE TABLE `ai_course_schedule` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 课程表';
 
 -- 38. AI 学科分类
-CREATE TABLE `ai_subject_category` (
+CREATE TABLE IF NOT EXISTS `ai_subject_category` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `name` varchar(50) NOT NULL COMMENT '学科名称',
   `code` varchar(50) NOT NULL COMMENT '学科编码',
@@ -822,7 +832,7 @@ CREATE TABLE `ai_subject_category` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 学科分类';
 
 -- 39. AI 知识点标签
-CREATE TABLE `ai_knowledge_tag` (
+CREATE TABLE IF NOT EXISTS `ai_knowledge_tag` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `subject_id` bigint NOT NULL COMMENT '所属学科编号',
   `name` varchar(100) NOT NULL COMMENT '标签名称',
@@ -841,7 +851,7 @@ CREATE TABLE `ai_knowledge_tag` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 知识点标签';
 
 -- 40. AI 题库
-CREATE TABLE `ai_question_bank` (
+CREATE TABLE IF NOT EXISTS `ai_question_bank` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `subject_id` bigint DEFAULT NULL COMMENT '学科编号',
   `knowledge_tag_ids` json DEFAULT NULL COMMENT '关联知识点标签编号',
@@ -870,7 +880,7 @@ CREATE TABLE `ai_question_bank` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 题库';
 
 -- 41. AI 错题本
-CREATE TABLE `ai_wrong_answer_book` (
+CREATE TABLE IF NOT EXISTS `ai_wrong_answer_book` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `question_id` bigint NOT NULL COMMENT '题目编号',
@@ -901,7 +911,7 @@ CREATE TABLE `ai_wrong_answer_book` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 错题本';
 
 -- 42. AI 作业
-CREATE TABLE `ai_homework` (
+CREATE TABLE IF NOT EXISTS `ai_homework` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `title` varchar(200) NOT NULL COMMENT '作业标题',
   `description` text COMMENT '作业描述',
@@ -928,7 +938,7 @@ CREATE TABLE `ai_homework` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 作业';
 
 -- 43. AI 作业提交
-CREATE TABLE `ai_homework_submission` (
+CREATE TABLE IF NOT EXISTS `ai_homework_submission` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `homework_id` bigint NOT NULL COMMENT '作业编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
@@ -954,7 +964,7 @@ CREATE TABLE `ai_homework_submission` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 作业提交';
 
 -- 44. AI 模拟考试
-CREATE TABLE `ai_exam` (
+CREATE TABLE IF NOT EXISTS `ai_exam` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `title` varchar(200) NOT NULL COMMENT '考试标题',
   `subject_id` bigint DEFAULT NULL COMMENT '学科编号',
@@ -982,7 +992,7 @@ CREATE TABLE `ai_exam` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 模拟考试';
 
 -- 45. AI 考试记录
-CREATE TABLE `ai_exam_record` (
+CREATE TABLE IF NOT EXISTS `ai_exam_record` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `exam_id` bigint NOT NULL COMMENT '考试编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
@@ -1009,7 +1019,7 @@ CREATE TABLE `ai_exam_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 考试记录';
 
 -- 46. AI 消息通知
-CREATE TABLE `ai_notification` (
+CREATE TABLE IF NOT EXISTS `ai_notification` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `notification_type` varchar(50) NOT NULL COMMENT '通知类型',
@@ -1018,7 +1028,7 @@ CREATE TABLE `ai_notification` (
   `ref_id` bigint DEFAULT NULL COMMENT '关联对象编号',
   `ref_type` varchar(50) DEFAULT NULL COMMENT '关联对象类型',
   `is_read` bit(1) NOT NULL DEFAULT b'0' COMMENT '是否已读',
-  `read_time` datetime DEFAULT NULL COMMENT '读时间',
+  `read_time` datetime DEFAULT NULL COMMENT '读取时间',
   `tenant_id` bigint NOT NULL DEFAULT '0' COMMENT '租户编号',
   `creator` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -1031,7 +1041,7 @@ CREATE TABLE `ai_notification` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='AI 消息通知';
 
 -- 47. AI 学习计划
-CREATE TABLE `ai_study_plan` (
+CREATE TABLE IF NOT EXISTS `ai_study_plan` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '编号',
   `user_id` bigint NOT NULL COMMENT '用户编号',
   `title` varchar(200) NOT NULL COMMENT '计划标题',

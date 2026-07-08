@@ -10,10 +10,19 @@
   <el-card shadow="never" style="margin-top:16px">
     <template #header><span style="font-weight:600"><el-icon><List /></el-icon> 历史评估</span></template>
     <el-table :data="list" stripe>
-      <el-table-column prop="evaluationType" label="类型" width="120" />
-      <el-table-column prop="evaluation" label="摘要" min-width="400" show-overflow-tooltip />
-      <el-table-column prop="createTime" label="时间" width="160" />
+      <el-table-column prop="dimension" label="维度" width="110" />
+      <el-table-column label="得分" width="80">
+        <template #default="{row}">
+          <span v-if="row.score>0" :style="{color:row.score>=80?'#67c23a':row.score>=60?'#e6a23c':'#f56c6c'}">{{row.score}}<span v-if="row.maxScore">/{{row.maxScore}}</span></span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="evaluation" label="评估内容" min-width="300" show-overflow-tooltip />
+      <el-table-column label="时间" width="170">
+        <template #default="{row}">{{ formatTime(row.createTime) }}</template>
+      </el-table-column>
     </el-table>
+    <el-empty v-if="list.length===0" description="暂无评估记录，请点击上方按钮生成" />
   </el-card>
 </template>
 <script setup>
@@ -22,6 +31,7 @@ import { evalApi } from '@/api/index.js'
 import { marked } from 'marked'
 const genning = ref(false); const stream = ref(''); const list = ref([])
 const render = (t) => marked.parse(t||'',{breaks:true})
+function formatTime(t){ if(!t)return''; const d=new Date(t); return d.getFullYear()+'年'+(d.getMonth()+1)+'月'+d.getDate()+'日' }
 async function gen() {
   genning.value=true; stream.value=''
   try {
@@ -31,7 +41,7 @@ async function gen() {
   } catch (e) { console.error('Generate evaluation failed:', e); ElMessage.error('生成评估报告失败，请重试') }
   genning.value=false; load()
 }
-async function load() { try { const r=await evalApi.page({pageNo:1,pageSize:20}); list.value=r.data?.list||[] } catch (e) { console.error('Failed to load evaluations:', e); ElMessage.error('加载评估记录失败') } }
+async function load() { try { const r=await evalApi.page({pageNo:1,pageSize:20}); list.value=r.data?.data?.list||[] } catch (e) { console.error('Failed to load evaluations:', e); ElMessage.error('加载评估记录失败') } }
 onMounted(load)
 </script>
 <style scoped>.md :deep(pre){background:#1e1e1e;color:#d4d4d4;padding:16px;border-radius:8px;overflow-x:auto}</style>

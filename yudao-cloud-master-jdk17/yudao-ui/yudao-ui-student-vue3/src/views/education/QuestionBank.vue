@@ -3,14 +3,14 @@
     <div class="page-head"><h2 class="page-title"><el-icon :size="24"><Reading /></el-icon> 题库</h2></div>
 
     <div class="filter-bar">
-      <el-select v-model="filterSubjectId" placeholder="选择学科" clearable style="width:150px" @change="load">
-        <el-option v-for="s in subjects" :key="s.id" :label="s.name" :value="s.id" />
+      <el-select v-model="filterSubjectId" placeholder="选择学科" clearable style="width:180px" @change="onFilterChange">
+        <el-option v-for="s in subjects" :key="s.id" :label="(s.parentId && s.parentId>0 ? '　' : '') + s.name" :value="s.id" />
       </el-select>
-      <el-select v-model="filterType" placeholder="题目类型" clearable style="width:130px" @change="load">
+      <el-select v-model="filterType" placeholder="题目类型" clearable style="width:130px" @change="onFilterChange">
         <el-option label="选择题" value="CHOICE" /><el-option label="判断题" value="JUDGE" />
         <el-option label="简答题" value="SHORT_ANSWER" /><el-option label="编程题" value="PROGRAMMING" />
       </el-select>
-      <el-select v-model="filterDifficulty" placeholder="难度" clearable style="width:100px" @change="load">
+      <el-select v-model="filterDifficulty" placeholder="难度" clearable style="width:100px" @change="onFilterChange">
         <el-option :value="1" label="Lv.1" /><el-option :value="2" label="Lv.2" />
         <el-option :value="3" label="Lv.3" /><el-option :value="4" label="Lv.4" /><el-option :value="5" label="Lv.5" />
       </el-select>
@@ -28,7 +28,7 @@
         <el-icon><ArrowRight /></el-icon>
       </div>
       <div class="pager" v-if="total>pageSize">
-        <el-pagination layout="prev,pager,next" :total="total" :page-size="pageSize" v-model:current-page="pageNo" @change="load" small />
+        <el-pagination layout="prev,pager,next" :total="total" :page-size="pageSize" v-model:current-page="pageNo" @current-change="load" small />
       </div>
     </div>
     <el-empty v-else description="暂无题目" :image-size="80" />
@@ -49,14 +49,31 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { questionApi, subjectApi } from '@/api/index.js'
+import { ElMessage } from 'element-plus'
 
 const loading=ref(false),list=ref([]),total=ref(0),pageNo=ref(1),pageSize=ref(10)
-const filterSubjectId=ref(null),filterType=ref(null),filterDifficulty=ref(null)
+const filterSubjectId=ref(null),filterType=ref(''),filterDifficulty=ref(null)
 const subjects=ref([])
 const detailVisible=ref(false),detail=ref(null)
 
-async function loadSubjects(){ try{const r=await subjectApi.list();subjects.value=r.data?.data||[]}catch(e){} }
-async function load(){ loading.value=true; try{const r=await questionApi.page({subjectId:filterSubjectId.value,questionType:filterType.value,difficulty:filterDifficulty.value,pageNo:pageNo.value,pageSize:pageSize.value});const d=r.data?.data;list.value=d?.list||[];total.value=d?.total||0}catch(e){} finally{loading.value=false} }
+function onFilterChange(){ pageNo.value=1; load() }
+async function loadSubjects(){ try{const r=await subjectApi.list();subjects.value=r.data?.data||[]}catch(e){console.error(e)} }
+async function load(){
+  loading.value=true
+  try{
+    const params={pageNo:pageNo.value,pageSize:pageSize.value}
+    if(filterSubjectId.value) params.subjectId=filterSubjectId.value
+    if(filterType.value) params.questionType=filterType.value
+    if(filterDifficulty.value) params.difficulty=filterDifficulty.value
+    const r=await questionApi.page(params)
+    const d=r.data?.data
+    list.value=d?.list||[]
+    total.value=d?.total||0
+  }catch(e){
+    console.error(e)
+    ElMessage.error('加载题目失败')
+  }finally{loading.value=false}
+}
 function showDetail(q){ detail.value=q; detailVisible.value=true }
 function parseOptions(opts){ try{return JSON.parse(opts)}catch(e){return{}} }
 

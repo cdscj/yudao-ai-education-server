@@ -37,7 +37,8 @@
                 <div class="streak-title">连续签到</div>
                 <div class="streak-detail">累计 {{ summary?.totalDays || 0 }} 天 · 本周 {{ weekChecked.length }} 天</div>
                 <div class="week-dots">
-                  <span v-for="(d,i) in weekDots" :key="i" class="dot" :class="{ fill: d }">{{ d ? '✓' : i+1 }}</span>
+                  <span v-for="(d,i) in weekDots" :key="i" class="dot"
+                    :class="{ fill: d.checked, today: d.isToday }">{{ d.checked ? '✓' : d.label }}</span>
                 </div>
               </div>
             </div>
@@ -160,17 +161,23 @@ const greetingText = computed(() => {
 })
 
 const weekDayLabels = ['日','一','二','三','四','五','六']
+
+// 本周签到：按真实星期对齐 — 周一=一, 周日=日，签到的打勾
 const weekDots = computed(() => {
-  const today = new Date(); const dots = []
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today); d.setDate(d.getDate() - i)
+  const today = new Date()
+  const dayOfWeek = today.getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+  // 本周日是 startOfWeek
+  const startOfWeek = new Date(today); startOfWeek.setDate(today.getDate() - dayOfWeek)
+  const dots = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startOfWeek); d.setDate(startOfWeek.getDate() + i)
     const ds = d.toISOString().split('T')[0]
-    dots.push(checkedDates.value.has(ds))
+    dots.push({ label: weekDayLabels[i], checked: checkedDates.value.has(ds), isToday: i === dayOfWeek })
   }
   return dots
 })
 const checkedDates = ref(new Set())
-const weekChecked = computed(() => weekDots.value.filter(Boolean))
+const weekChecked = computed(() => weekDots.value.filter(d => d.checked))
 
 const statCards = computed(() => [
   { key:'streak', icon:'Histogram', val:summary.value?.streakDays||0, label:'连续天数' },
@@ -315,6 +322,7 @@ onMounted(async () => {
 .week-dots { display:flex; gap:6px; margin-top:10px }
 .dot { width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center; font-size:11px; transition:all .3s }
 .dot.fill { background:#ffd666; border-color:#ffd666; color:#1a1a2e; font-weight:700 }
+.dot.today:not(.fill) { border-color:#ffd666; color:#ffd666 }
 
 .checkin-btn { align-self:flex-start; padding:12px 32px; font-size:16px; background:linear-gradient(135deg,#ffd666,#ffb800); border:none; color:#1a1a2e; font-weight:700; transition:all .3s }
 .checkin-btn:hover { transform:scale(1.03); box-shadow:0 8px 25px rgba(255,182,0,0.4) }

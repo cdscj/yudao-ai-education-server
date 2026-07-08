@@ -133,6 +133,34 @@ public class YudaoAiProperties {
         private Integer maxTokens;
         private Double topP;
 
+        /**
+         * 讯飞智能 PPT 生成配置（复用星火 appId/secretKey，也可单独配置）
+         */
+        private Ppt ppt;
+
+        @Data
+        public static class Ppt {
+
+            /** 是否启用 PPT 生成功能 */
+            private boolean enable;
+
+            /** PPT 生成 API 地址，默认 https://zwapi.xfyun.cn/api/ppt/v2 */
+            private String baseUrl;
+
+            /** PPT 默认模板ID */
+            private String defaultTemplateId;
+
+            /** PPT 默认作者名 */
+            private String defaultAuthor;
+
+            /** 是否自动配图 */
+            private Boolean isFigure;
+
+            /** AI 配图类型: normal / advanced */
+            private String aiImage;
+
+        }
+
     }
 
     @Data

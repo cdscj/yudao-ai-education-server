@@ -69,6 +69,8 @@ public class AdminAuthServiceImpl implements AdminAuthService {
     private CaptchaService captchaService;
     @Resource
     private SmsCodeApi smsCodeApi;
+    @Resource
+    private cn.iocoder.yudao.module.system.dal.redis.oauth2.OAuth2AccessTokenRedisDAO oauth2AccessTokenRedisDAO;
 
     /**
      * 验证码的开关，默认为 true
@@ -231,6 +233,12 @@ public class AdminAuthServiceImpl implements AdminAuthService {
         OAuth2AccessTokenDO accessTokenDO = oauth2TokenService.removeAccessToken(token);
         if (accessTokenDO == null) {
             return;
+        }
+        // 清除 Redis 用户会话（7天滑动过期），阻止后续自动刷新
+        try {
+            oauth2AccessTokenRedisDAO.deleteUserSession(accessTokenDO.getUserId(), accessTokenDO.getUserType());
+        } catch (Exception e) {
+            // Redis 操作失败不影响主流程
         }
         // 删除成功，则记录登出日志
         createLogoutLog(accessTokenDO.getUserId(), accessTokenDO.getUserType(), logType);

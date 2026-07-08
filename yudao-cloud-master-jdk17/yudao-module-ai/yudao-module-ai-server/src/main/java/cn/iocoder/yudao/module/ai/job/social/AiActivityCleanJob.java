@@ -1,11 +1,12 @@
 package cn.iocoder.yudao.module.ai.job.social;
 
+import cn.iocoder.yudao.framework.tenant.core.job.TenantJob;
 import cn.iocoder.yudao.module.ai.dal.dataobject.social.AiUserActivityDO;
 import cn.iocoder.yudao.module.ai.dal.mysql.social.AiUserActivityMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -24,7 +25,8 @@ public class AiActivityCleanJob {
     @Resource
     private AiUserActivityMapper userActivityMapper;
 
-    @Scheduled(cron = "0 0 3 * * ?")
+    @XxlJob("aiActivityCleanJob")
+    @TenantJob
     public void cleanActivity() {
         log.info("[cleanActivity][开始清理过期活动记录]");
         try {

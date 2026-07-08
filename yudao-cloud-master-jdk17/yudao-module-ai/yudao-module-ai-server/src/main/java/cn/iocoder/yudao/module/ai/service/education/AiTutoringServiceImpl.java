@@ -17,13 +17,13 @@ import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelGateway;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -48,7 +48,11 @@ public class AiTutoringServiceImpl implements AiTutoringService {
     @Resource
     private AiModelService modelService;
     @Resource
+    private AiModelGateway modelGateway;
+    @Resource
     private AiSystemConfigService configService;
+    @Resource
+    private AiWrongAnswerBookService wrongAnswerBookService;
 
     private static final String DEFAULT_TUTOR_PROMPT = """
             你是一位专业、耐心的高校课程辅导教师。你的职责包括：
@@ -92,6 +96,13 @@ public class AiTutoringServiceImpl implements AiTutoringService {
         if (history.size() > 50) { history = new ArrayList<>(history.subList(history.size() - 50, history.size())); }
         List<Message> messages = new ArrayList<>();
         String tutorPrompt = configService.getConfigValue("edu.tutoring.prompt", DEFAULT_TUTOR_PROMPT);
+
+        // 加载学生的薄弱知识点，融入辅导上下文
+        String weakPointContext = buildWeakPointContext(userId);
+        if (StrUtil.isNotBlank(weakPointContext)) {
+            tutorPrompt = tutorPrompt + "\n\n" + weakPointContext;
+        }
+
         messages.add(new SystemMessage(tutorPrompt));
         for (AiTutoringMessageDO msg : history) {
             messages.add(new UserMessage(msg.getContent()));
@@ -99,31 +110,29 @@ public class AiTutoringServiceImpl implements AiTutoringService {
 
         Long finalSessionId = sessionId;
         AiTutoringSessionDO finalSession = session;
-        return AiUtils.buildStreamWithFallback(models, model -> {
-            ChatModel chatModel = modelService.getChatModel(model.getId());
-            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                    model.getTemperature(), model.getMaxTokens());
-            Prompt prompt = new Prompt(messages, options);
+        AiModelDO model = models.get(models.size() - 1);
+        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
+        ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
+                model.getTemperature(), model.getMaxTokens());
+        Prompt prompt = new Prompt(messages, options);
 
-            StringBuffer contentBuffer = new StringBuffer();
-            return chatModel.stream(prompt).map(chunk -> {
-                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-                contentBuffer.append(newContent);
-                return success(newContent);
-            }).doOnComplete(() -> {
-                TenantUtils.executeIgnore(() -> {
-                    AiTutoringMessageDO assistantMsg = new AiTutoringMessageDO();
-                    assistantMsg.setSessionId(finalSessionId).setUserId(userId).setRole("assistant")
-                            .setContentType("text").setContent(contentBuffer.toString());
-                    tutoringMessageMapper.insert(assistantMsg);
-                    if (finalSession.getTitle() == null || finalSession.getTitle().length() < 3) {
-                        tutoringSessionMapper.updateById(new AiTutoringSessionDO()
-                                .setId(finalSessionId).setTitle(StrUtil.sub(reqVO.getQuestion(), 0, 50)));
-                    }
+        StringBuffer contentBuffer = new StringBuffer();
+        return modelGateway.chatStream(model.getId(), prompt)
+                .map(text -> {
+                    contentBuffer.append(text);
+                    return success(text);
+                }).doOnComplete(() -> {
+                    TenantUtils.executeIgnore(() -> {
+                        AiTutoringMessageDO assistantMsg = new AiTutoringMessageDO();
+                        assistantMsg.setSessionId(finalSessionId).setUserId(userId).setRole("assistant")
+                                .setContentType("text").setContent(contentBuffer.toString());
+                        tutoringMessageMapper.insert(assistantMsg);
+                        if (finalSession.getTitle() == null || finalSession.getTitle().length() < 3) {
+                            tutoringSessionMapper.updateById(new AiTutoringSessionDO()
+                                    .setId(finalSessionId).setTitle(StrUtil.sub(reqVO.getQuestion(), 0, 50)));
+                        }
+                    });
                 });
-            });
-        }, "tutoringChat", EDUCATION_STREAM_ERROR);
     }
 
     @Override
@@ -144,5 +153,34 @@ public class AiTutoringServiceImpl implements AiTutoringService {
             throw exception(TUTORING_SESSION_NOT_EXISTS);
         }
         tutoringSessionMapper.deleteById(id);
+    }
+
+    /**
+     * 构建学生的薄弱知识点上下文，融入辅导提示词
+     */
+    private String buildWeakPointContext(Long userId) {
+        try {
+            List<AiWrongAnswerBookService.WeakPointVO> weakPoints =
+                    wrongAnswerBookService.getWeakPointAnalysis(userId, null);
+            if (CollUtil.isEmpty(weakPoints)) {
+                return "";
+            }
+            // 只取前 5 个最薄弱的知识点，避免提示词过长
+            List<AiWrongAnswerBookService.WeakPointVO> top5 = weakPoints.size() > 5
+                    ? weakPoints.subList(0, 5) : weakPoints;
+            StringBuilder sb = new StringBuilder();
+            sb.append("【学生薄弱知识点参考】\n");
+            sb.append("根据该学生的错题记录，以下知识点需要重点关注（按薄弱程度排序）：\n");
+            for (int i = 0; i < top5.size(); i++) {
+                AiWrongAnswerBookService.WeakPointVO wp = top5.get(i);
+                sb.append(i + 1).append(". ").append(wp.tagName())
+                        .append("（错题数：").append(wp.wrongCount()).append("）\n");
+            }
+            sb.append("请在辅导过程中优先关注这些薄弱知识点，帮助学生查漏补缺。");
+            return sb.toString();
+        } catch (Exception e) {
+            log.warn("[buildWeakPointContext][加载薄弱点失败，userId({})]", userId, e);
+            return "";
+        }
     }
 }

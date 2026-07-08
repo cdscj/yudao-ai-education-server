@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken, removeTokens } from '@/utils/auth'
+import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken, removeTokens } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 
@@ -14,12 +14,20 @@ function authHeaders() {
 
 axios.interceptors.request.use(config => {
   config.headers['tenant-id'] = TENANT_ID
-  const token = getAccessToken()
-  if (token) {
-    config.headers['Authorization'] = 'Bearer ' + token
+  // 刷新 token 的请求不需要携带旧的 accessToken（否则旧 token 过期会导致刷新失败）
+  const isRefreshRequest = config.url && config.url.includes('/auth/refresh-token')
+  if (!isRefreshRequest) {
+    const token = getAccessToken()
+    if (token) {
+      config.headers['Authorization'] = 'Bearer ' + token
+    }
   }
   return config
 })
+
+// ========== Token 自动刷新 ==========
+let isRefreshing = false
+let refreshQueue = []
 
 function handleUnauthorized() {
   ElMessage.warning('登录已过期，请重新登录')
@@ -27,25 +35,92 @@ function handleUnauthorized() {
   router.push('/login')
 }
 
+async function doRefreshToken() {
+  const refreshToken = getRefreshToken()
+  if (!refreshToken) throw new Error('无刷新令牌')
+  const res = await axios.post('/app-api/member/auth/refresh-token?refreshToken=' + encodeURIComponent(refreshToken))
+  if (res.data?.code !== 0) throw new Error(res.data?.msg || '刷新失败')
+  setAccessToken(res.data.data.accessToken)
+  setRefreshToken(res.data.data.refreshToken)
+  return res.data.data
+}
+
 axios.interceptors.response.use(
   response => {
-    // Debug: log API responses in development
     if (import.meta.env.DEV) {
       console.log('[API]', response.config.url, response.data?.code)
     }
     if (response.data && response.data.code === 401) {
-      handleUnauthorized()
-      return Promise.reject(new Error('未登录'))
+      // Token 过期，尝试自动刷新
+      if (!isRefreshing && getRefreshToken()) {
+        isRefreshing = true
+        return doRefreshToken().then(tokenData => {
+          response.config.headers['Authorization'] = 'Bearer ' + tokenData.accessToken
+          refreshQueue.forEach(cb => cb(tokenData.accessToken))
+          refreshQueue = []
+          return axios(response.config)
+        }).catch(() => {
+          refreshQueue.forEach(cb => cb(null))
+          refreshQueue = []
+          handleUnauthorized()
+          return Promise.reject(new Error('登录已过期'))
+        }).finally(() => {
+          isRefreshing = false
+        })
+      } else if (isRefreshing) {
+        // 正在刷新中，将请求加入队列等待
+        return new Promise((resolve, reject) => {
+          refreshQueue.push((newToken) => {
+            if (newToken) {
+              response.config.headers['Authorization'] = 'Bearer ' + newToken
+              resolve(axios(response.config))
+            } else {
+              reject(new Error('登录已过期'))
+            }
+          })
+        })
+      } else {
+        handleUnauthorized()
+        return Promise.reject(new Error('未登录'))
+      }
     }
     return response
   },
   error => {
-    // Debug: log API errors in development
     if (import.meta.env.DEV) {
       console.error('[API Error]', error.config?.url, error.response?.status, error.response?.data)
     }
     if (error.response && error.response.status === 401) {
-      handleUnauthorized()
+      if (!isRefreshing && getRefreshToken() && error.config && !error.config._retry) {
+        error.config._retry = true
+        isRefreshing = true
+        return doRefreshToken().then(tokenData => {
+          error.config.headers['Authorization'] = 'Bearer ' + tokenData.accessToken
+          refreshQueue.forEach(cb => cb(tokenData.accessToken))
+          refreshQueue = []
+          return axios(error.config)
+        }).catch(() => {
+          refreshQueue.forEach(cb => cb(null))
+          refreshQueue = []
+          handleUnauthorized()
+          return Promise.reject(new Error('登录已过期'))
+        }).finally(() => {
+          isRefreshing = false
+        })
+      } else if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          refreshQueue.push((newToken) => {
+            if (newToken) {
+              error.config.headers['Authorization'] = 'Bearer ' + newToken
+              resolve(axios(error.config))
+            } else {
+              reject(new Error('登录已过期'))
+            }
+          })
+        })
+      } else {
+        handleUnauthorized()
+      }
     }
     return Promise.reject(error)
   }
@@ -136,6 +211,7 @@ export const wrongBookApi = {
   page: (p) => axios.get(EDU + '/wrong-answer/page', { params: p }),
   get: (id) => axios.get(EDU + '/wrong-answer/get', { params: { id } }),
   stats: () => axios.get(EDU + '/wrong-answer/stats'),
+  weakPoints: (subjectId) => axios.get(EDU + '/wrong-answer/weak-points', { params: subjectId ? { subjectId } : {} }),
   review: (id) => axios.post(EDU + '/wrong-answer/review', null, { params: { id } }),
   record: (d) => axios.post(EDU + '/wrong-answer/record', d),
 }
@@ -207,4 +283,31 @@ export const memberApi = {
 
 export const uploadApi = {
   file: (file, dir) => { const fd = new FormData(); fd.append('file', file); if (dir) fd.append('directory', dir); return axios.post('/app-api/infra/file/upload', fd) },
+}
+
+// ========== AI 每日学习报告 ==========
+export const reportApi = {
+  latest: () => axios.get(EDU + '/daily-report/latest'),
+  getByDate: (date) => axios.get(EDU + '/daily-report/get', { params: { date } }),
+  page: (p) => axios.get(EDU + '/daily-report/page', { params: p }),
+  markRead: (id) => axios.put(EDU + '/daily-report/read', null, { params: { id } }),
+  weakPoints: (limit) => axios.get(EDU + '/daily-report/weak-points', { params: { limit: limit || 10 } }),
+}
+
+// ========== AI 智能刷题 ==========
+function ssePost(url, body) {
+  return fetch(url, { method: 'POST', headers: authHeaders(), body: JSON.stringify(body) })
+}
+function sseGet(url) {
+  return fetch(url, { headers: authHeaders() })
+}
+
+export const practiceApi = {
+  createSession: (d) => axios.post(EDU + '/practice/session/create', d),
+  nextQuestion: (sessionId) => sseGet(EDU + '/practice/question/next?sessionId=' + sessionId),
+  submitAnswer: (d) => ssePost(EDU + '/practice/question/submit', d),
+  completeSession: (sessionId) => sseGet(EDU + '/practice/session/complete?sessionId=' + sessionId),
+  inProgress: () => axios.get(EDU + '/practice/session/in-progress'),
+  history: (p) => axios.get(EDU + '/practice/session/page', { params: p }),
+  questions: (sessionId) => axios.get(EDU + '/practice/session/questions', { params: { sessionId } }),
 }

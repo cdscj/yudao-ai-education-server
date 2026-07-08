@@ -33,8 +33,11 @@
               {{ item.isCorrect ? '✓' : '✗' }}
             </div>
             <div class="wi-info">
-              <div class="wi-question">{{ item.userAnswer || '(空)' }}</div>
-              <div class="wi-answer" v-if="!item.isCorrect">正确答案: {{ item.correctAnswer }}</div>
+              <div class="wi-question">{{ item.questionTitle || '(无题目内容)' }}</div>
+              <div class="wi-answer-row">
+                <span class="wi-your">你的答案: <b :class="{ wrong: !item.isCorrect }">{{ item.userAnswer || '(空)' }}</b></span>
+                <span class="wi-correct" v-if="!item.isCorrect">正确答案: <b>{{ item.correctAnswer }}</b></span>
+              </div>
             </div>
           </div>
           <div class="wi-right">
@@ -52,6 +55,10 @@
     <!-- 错题详情弹窗 -->
     <el-dialog v-model="detailVisible" title="错题详情" width="560px" :close-on-click-modal="false">
       <div class="detail-content" v-if="detail">
+        <div class="d-section">
+          <div class="d-label">题目</div>
+          <div class="d-value title">{{ detail.questionTitle || '(无题目内容)' }}</div>
+        </div>
         <div class="d-section">
           <div class="d-label">你的答案</div>
           <div class="d-value" :class="{ wrong: !detail.isCorrect }">{{ detail.userAnswer || '(空)' }}</div>
@@ -175,7 +182,10 @@ onMounted(async () => {
 .wi-status.wrong { background:#fde2e2; color:#f56c6c }
 .wi-info { min-width:0 }
 .wi-question { font-weight:500;color:#303133;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
-.wi-answer { color:#67c23a;font-size:12px;margin-top:2px }
+.wi-answer-row { display:flex; gap:16px; font-size:12px; margin-top:4px }
+.wi-your { color:#909399 }
+.wi-your b.wrong { color:#f56c6c }
+.wi-correct { color:#67c23a }
 .wi-right { display:flex;align-items:center;gap:8px;flex-shrink:0 }
 .wi-review { font-size:12px;color:#909399 }
 
@@ -184,6 +194,7 @@ onMounted(async () => {
 .d-section { margin-bottom:14px }
 .d-label { font-size:13px;color:#909399;margin-bottom:4px }
 .d-value { font-size:15px;color:#303133;padding:10px 14px;background:#f8f9fb;border-radius:8px }
+.d-value.title { font-size:16px;font-weight:500;background:#fff;border:1px solid #e4e7ed }
 .d-value.wrong { color:#f56c6c; background:#fef0f0 }
 .d-value.correct { color:#67c23a; background:#f0f9eb }
 .d-value.analysis { color:#409eff; background:#ecf5ff; line-height:1.6 }

@@ -68,6 +68,16 @@ public interface RedisKeyConstants {
     String OAUTH2_ACCESS_TOKEN = "oauth2_access_token:%s";
 
     /**
+     * 用户活跃会话的缓存（7天滑动过期）
+     * <p>
+     * KEY 格式：oauth2_user_session:{userId}:{userType}
+     * VALUE 数据类型：String refresh_token
+     * <p>
+     * 每次请求刷新 TTL，退出登录时删除
+     */
+    String OAUTH2_USER_SESSION = "oauth2_user_session:%d:%d";
+
+    /**
      * 站内信模版的缓存
      * <p>
      * KEY 格式：notify_template:{code}

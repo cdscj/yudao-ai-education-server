@@ -17,13 +17,13 @@ import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelGateway;
 import cn.iocoder.yudao.module.ai.util.AiUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -49,6 +49,8 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
     private AiLearningPathNodeMapper learningPathNodeMapper;
     @Resource
     private AiModelService modelService;
+    @Resource
+    private AiModelGateway modelGateway;
     @Resource
     private AiSystemConfigService configService;
 
@@ -94,33 +96,31 @@ public class AiLearningPathServiceImpl implements AiLearningPathService {
                 reqVO.getDurationDays() != null ? reqVO.getDurationDays() : 30);
         messages.add(new UserMessage(userMsg));
 
-        return AiUtils.buildStreamWithFallback(models, model -> {
-            ChatModel chatModel = modelService.getChatModel(model.getId());
-            AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-            ChatOptions options = AiUtils.buildChatOptions(platform, model.getModel(),
-                    model.getTemperature(), model.getMaxTokens());
-            Prompt prompt = new Prompt(messages, options);
+        AiModelDO selectedModel = models.get(models.size() - 1);
+        AiPlatformEnum platform = AiPlatformEnum.validatePlatform(selectedModel.getPlatform());
+        ChatOptions options = AiUtils.buildChatOptions(platform, selectedModel.getModel(),
+                selectedModel.getTemperature(), selectedModel.getMaxTokens());
+        Prompt prompt = new Prompt(messages, options);
 
-            StringBuffer contentBuffer = new StringBuffer();
-            return chatModel.stream(prompt).map(chunk -> {
-                String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : "";
-                if (newContent == null || "null".equals(newContent)) newContent = "";
-                contentBuffer.append(newContent);
-                return success(newContent);
-            }).doOnComplete(() -> {
-                TenantUtils.executeIgnore(() -> {
-                    String fullContent = contentBuffer.toString();
-                    learningPathMapper.updateById(new AiLearningPathDO()
-                            .setId(pathId).setDescription(fullContent).setStatus("COMPLETED"));
+        StringBuffer contentBuffer = new StringBuffer();
+        return modelGateway.chatStream(selectedModel.getId(), prompt)
+                .map(text -> {
+                    if (text == null || "null".equals(text)) text = "";
+                    contentBuffer.append(text);
+                    return success(text);
+                }).doOnComplete(() -> {
+                    TenantUtils.executeIgnore(() -> {
+                        String fullContent = contentBuffer.toString();
+                        learningPathMapper.updateById(new AiLearningPathDO()
+                                .setId(pathId).setDescription(fullContent).setStatus("COMPLETED"));
+                    });
+                }).doOnError(throwable -> {
+                    log.error("[generatePath][reqVO({}) 异常]", reqVO, throwable);
+                    TenantUtils.executeIgnore(() -> {
+                        learningPathMapper.updateById(new AiLearningPathDO()
+                                .setId(pathId).setStatus("FAILED"));
+                    });
                 });
-            }).doOnError(throwable -> {
-                log.error("[generatePath][reqVO({}) 异常]", reqVO, throwable);
-                TenantUtils.executeIgnore(() -> {
-                    learningPathMapper.updateById(new AiLearningPathDO()
-                            .setId(pathId).setStatus("FAILED"));
-                });
-            });
-        }, "generatePath", EDUCATION_STREAM_ERROR);
     }
 
     @Override

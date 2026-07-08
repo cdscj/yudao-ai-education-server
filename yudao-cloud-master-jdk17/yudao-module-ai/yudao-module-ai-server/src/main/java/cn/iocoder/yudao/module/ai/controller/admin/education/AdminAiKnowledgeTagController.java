@@ -18,6 +18,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import static cn.iocoder.yudao.framework.common.pojo.CommonResult.success;
+import java.util.List;
 
 @Tag(name = "管理后台 - 知识点标签")
 @RestController
@@ -67,5 +68,14 @@ public class AdminAiKnowledgeTagController {
         return success(BeanUtils.toBean(knowledgeTagService.getKnowledgeTagPage(
                 pageReqVO.getSubjectId(), pageReqVO.getName(), pageReqVO.getStatus(),
                 pageReqVO.getPageNo(), pageReqVO.getPageSize()), AiKnowledgeTagRespVO.class));
+    }
+
+    @GetMapping("/list-by-subject")
+    @Operation(summary = "根据学科获得知识点标签列表")
+    @Parameter(name = "subjectId", description = "学科编号", required = true)
+    @PreAuthorize("@ss.hasPermission('ai:knowledge-tag:query')")
+    public CommonResult<List<AiKnowledgeTagRespVO>> listBySubject(@RequestParam("subjectId") Long subjectId) {
+        return success(BeanUtils.toBean(knowledgeTagService.getKnowledgeTagListBySubjectId(subjectId),
+                AiKnowledgeTagRespVO.class));
     }
 }

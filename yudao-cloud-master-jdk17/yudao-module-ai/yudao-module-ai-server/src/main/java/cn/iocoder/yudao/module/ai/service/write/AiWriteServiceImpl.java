@@ -23,14 +23,13 @@ import cn.iocoder.yudao.module.ai.enums.ErrorCodeConstants;
 import cn.iocoder.yudao.module.ai.enums.write.AiWriteTypeEnum;
 import cn.iocoder.yudao.module.ai.service.model.AiChatRoleService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelGateway;
 import cn.iocoder.yudao.module.system.api.dict.DictDataApi;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.StreamingChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -57,6 +56,8 @@ public class AiWriteServiceImpl implements AiWriteService {
     @Resource
     private AiModelService modalService;
     @Resource
+    private AiModelGateway modelGateway;
+    @Resource
     private AiChatRoleService chatRoleService;
 
     @Resource
@@ -74,35 +75,32 @@ public class AiWriteServiceImpl implements AiWriteService {
                 ? writeRole.getSystemMessage() : AiChatRoleEnum.AI_WRITE_ROLE.getSystemMessage();
         // 1.3 校验平台
         AiPlatformEnum platform = AiPlatformEnum.validatePlatform(model.getPlatform());
-        StreamingChatModel chatModel = modalService.getChatModel(model.getId());
 
         // 2. 插入写作信息
         AiWriteDO writeDO = BeanUtils.toBean(generateReqVO, AiWriteDO.class, write -> write.setUserId(userId)
                         .setPlatform(platform.getPlatform()).setModelId(model.getId()).setModel(model.getModel()));
         writeMapper.insert(writeDO);
 
-        // 3.1 构建 Prompt，并进行调用
+        // 3.1 构建 Prompt，通过 Gateway 流式调用（获得重试+熔断+fallback 保护）
         Prompt prompt = buildPrompt(generateReqVO, model, systemMessage);
-        Flux<ChatResponse> streamResponse = chatModel.stream(prompt);
 
         // 3.2 流式返回
         StringBuffer contentBuffer = new StringBuffer();
-        return streamResponse.map(chunk -> {
-            String newContent = chunk.getResult() != null ? chunk.getResult().getOutput().getText() : null;
-            newContent = StrUtil.nullToDefault(newContent, ""); // 避免 null 的 情况
-            contentBuffer.append(newContent);
-            // 响应结果
-            return success(newContent);
-        }).doOnComplete(() -> {
-            // 忽略租户，因为 Flux 异步无法透传租户
-            TenantUtils.executeIgnore(() ->
-                    writeMapper.updateById(new AiWriteDO().setId(writeDO.getId()).setGeneratedContent(contentBuffer.toString())));
-        }).doOnError(throwable -> {
-            log.error("[generateWriteContent][generateReqVO({}) 发生异常]", generateReqVO, throwable);
-            // 忽略租户，因为 Flux 异步无法透传租户
-            TenantUtils.executeIgnore(() ->
-                    writeMapper.updateById(new AiWriteDO().setId(writeDO.getId()).setErrorMessage(throwable.getMessage())));
-        }).onErrorResume(error -> Flux.just(error(ErrorCodeConstants.WRITE_STREAM_ERROR)));
+        return modelGateway.chatStream(model.getId(), prompt)
+                .map(text -> {
+                    String newContent = StrUtil.nullToDefault(text, "");
+                    contentBuffer.append(newContent);
+                    return success(newContent);
+                }).doOnComplete(() -> {
+                    // 忽略租户，因为 Flux 异步无法透传租户
+                    TenantUtils.executeIgnore(() ->
+                            writeMapper.updateById(new AiWriteDO().setId(writeDO.getId()).setGeneratedContent(contentBuffer.toString())));
+                }).doOnError(throwable -> {
+                    log.error("[generateWriteContent][generateReqVO({}) 发生异常]", generateReqVO, throwable);
+                    // 忽略租户，因为 Flux 异步无法透传租户
+                    TenantUtils.executeIgnore(() ->
+                            writeMapper.updateById(new AiWriteDO().setId(writeDO.getId()).setErrorMessage(throwable.getMessage())));
+                });
     }
 
     private AiModelDO getModel(AiChatRoleDO writeRole) {

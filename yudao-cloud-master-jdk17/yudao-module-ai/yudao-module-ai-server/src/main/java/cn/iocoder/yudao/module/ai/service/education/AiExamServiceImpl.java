@@ -14,10 +14,9 @@ import cn.iocoder.yudao.module.ai.dal.mysql.education.AiQuestionBankMapper;
 import cn.iocoder.yudao.module.ai.enums.model.AiModelTypeEnum;
 import cn.iocoder.yudao.module.ai.service.config.AiSystemConfigService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelGateway;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +39,7 @@ public class AiExamServiceImpl implements AiExamService {
     @Resource private AiExamRecordMapper recordMapper;
     @Resource private AiQuestionBankMapper questionBankMapper;
     @Resource private AiModelService modelService;
+    @Resource private AiModelGateway modelGateway;
     @Resource private AiSystemConfigService configService;
 
     @Override public Long createExam(AiExamDO e) { mapper.insert(e); return e.getId(); }
@@ -139,9 +139,8 @@ public class AiExamServiceImpl implements AiExamService {
                 subjectId, difficulty != null ? difficulty : 3, questionCount != null ? questionCount : 10);
 
         AiModelDO model = models.get(models.size() - 1);
-        ChatModel chatModel = modelService.getChatModel(model.getId());
-        ChatResponse response = chatModel.call(new Prompt(genPrompt + "\n\n" + userMsg));
-        String resultText = response.getResult().getOutput().getText();
+        String resultText = modelGateway.chatSync(model.getId(),
+                new Prompt(genPrompt + "\n\n" + userMsg));
 
         // 解析 AI 生成的题目并保存到题库
         try {
@@ -234,9 +233,8 @@ public class AiExamServiceImpl implements AiExamService {
         }
 
         AiModelDO model = models.get(models.size() - 1);
-        ChatModel chatModel = modelService.getChatModel(model.getId());
-        ChatResponse response = chatModel.call(new Prompt(analysisPrompt + "\n\n" + input));
-        String resultText = response.getResult().getOutput().getText();
+        String resultText = modelGateway.chatSync(model.getId(),
+                new Prompt(analysisPrompt + "\n\n" + input));
 
         // 解析结果
         try {

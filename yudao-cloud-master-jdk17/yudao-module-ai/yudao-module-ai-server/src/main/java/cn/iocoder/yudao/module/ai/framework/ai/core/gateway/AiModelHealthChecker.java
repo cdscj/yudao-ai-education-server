@@ -6,6 +6,7 @@ import cn.iocoder.yudao.module.ai.enums.model.AiPlatformEnum;
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.AiModelFactory;
 import cn.iocoder.yudao.module.ai.service.model.AiApiKeyService;
 import cn.iocoder.yudao.module.ai.service.model.AiModelService;
+import cn.iocoder.yudao.framework.tenant.core.util.TenantUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -44,25 +45,26 @@ public class AiModelHealthChecker {
      */
     @Scheduled(fixedDelay = 60_000, initialDelay = 30_000)
     public void checkHealth() {
-        // 获取所有启用的 Chat 模型
-        List<AiModelDO> models = modelService.getEnabledModels(1); // 1 = CHAT type
-        for (AiModelDO model : models) {
-            try {
-                AiApiKeyDO apiKey = apiKeyService.getApiKey(model.getKeyId());
-                if (apiKey == null) {
+        // 使用忽略租户模式：模型配置是全局的，不需要按租户隔离
+        TenantUtils.executeIgnore(() -> {
+            List<AiModelDO> models = modelService.getEnabledModels(1); // 1 = CHAT type
+            for (AiModelDO model : models) {
+                try {
+                    AiApiKeyDO apiKey = apiKeyService.getApiKey(model.getKeyId());
+                    if (apiKey == null) {
+                        healthStatus.put(model.getId(), false);
+                        continue;
+                    }
+                    AiPlatformEnum platform = AiPlatformEnum.validatePlatform(apiKey.getPlatform());
+                    modelFactory.getOrCreateChatModel(platform, apiKey.getApiKey(), apiKey.getUrl());
+                    healthStatus.put(model.getId(), true);
+                } catch (Exception e) {
+                    log.warn("[HealthCheck] 模型 {} (id={}) 健康检查失败: {}",
+                            model.getName(), model.getId(), e.getMessage());
                     healthStatus.put(model.getId(), false);
-                    continue;
                 }
-                // 简单探测：尝试获取模型实例（不实际调用）
-                AiPlatformEnum platform = AiPlatformEnum.validatePlatform(apiKey.getPlatform());
-                modelFactory.getOrCreateChatModel(platform, apiKey.getApiKey(), apiKey.getUrl());
-                healthStatus.put(model.getId(), true);
-            } catch (Exception e) {
-                log.warn("[HealthCheck] 模型 {} (id={}) 健康检查失败: {}",
-                        model.getName(), model.getId(), e.getMessage());
-                healthStatus.put(model.getId(), false);
             }
-        }
+        });
     }
 
     public boolean isHealthy(Long modelId) {

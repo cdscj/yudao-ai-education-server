@@ -18,7 +18,7 @@ public class CodeAgent extends ReActAgent {
     public String getAgentName() { return "代码智能体"; }
 
     @Override
-    protected String getSystemPrompt() {
+    public String getSystemPrompt() {
         return """
                 你是一个高级编程助手，专注代码生成、调试和算法讲解。
                 要求：

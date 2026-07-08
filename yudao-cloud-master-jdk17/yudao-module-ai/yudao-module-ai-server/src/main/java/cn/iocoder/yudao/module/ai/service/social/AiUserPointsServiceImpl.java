@@ -24,6 +24,8 @@ public class AiUserPointsServiceImpl implements AiUserPointsService {
     private AiUserPointsMapper userPointsMapper;
     @Resource
     private AiLeaderboardService leaderboardService;
+    @Resource
+    private AiUserActivityService userActivityService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -42,6 +44,7 @@ public class AiUserPointsServiceImpl implements AiUserPointsService {
         }
 
         // 2. 更新积分
+        int oldLevel = userPoints.getLevel();
         userPoints.setTotalPoints(userPoints.getTotalPoints() + points);
         userPoints.setWeeklyPoints(userPoints.getWeeklyPoints() + points);
         userPoints.setMonthlyPoints(userPoints.getMonthlyPoints() + points);
@@ -53,6 +56,14 @@ public class AiUserPointsServiceImpl implements AiUserPointsService {
 
         // 4. 更新记录
         userPointsMapper.updateById(userPoints);
+
+        // 4a. 发布积分动态
+        userActivityService.publishActivity(userId, 3, "获得了 " + points + " 积分", bizId);
+        // 4b. 等级提升时发布动态
+        if (level > oldLevel) {
+            userActivityService.publishActivity(userId, 4,
+                    "升级到 Lv." + level + " " + getRankTitle(level), bizId);
+        }
 
         // 5. 更新排行榜
         leaderboardService.updateScore(userId, points, "DAILY");

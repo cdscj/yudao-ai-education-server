@@ -7,6 +7,7 @@ import cn.iocoder.yudao.framework.mybatis.core.query.LambdaQueryWrapperX;
 import cn.iocoder.yudao.module.ai.dal.dataobject.education.AiKnowledgeTagDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
@@ -25,5 +26,9 @@ public interface AiKnowledgeTagMapper extends BaseMapperX<AiKnowledgeTagDO> {
                 .eq(AiKnowledgeTagDO::getSubjectId, subjectId)
                 .eq(AiKnowledgeTagDO::getStatus, 0)
                 .orderByAsc(AiKnowledgeTagDO::getSort));
+    }
+
+    default List<AiKnowledgeTagDO> selectListByIds(Collection<Long> ids) {
+        return selectBatchIds(ids);
     }
 }

@@ -13,10 +13,10 @@ import java.util.List;
 @Mapper
 public interface AiQuestionBankMapper extends BaseMapperX<AiQuestionBankDO> {
 
-    default PageResult<AiQuestionBankDO> selectPage(PageParam pageParam, Long subjectId, String questionType,
+    default PageResult<AiQuestionBankDO> selectPage(PageParam pageParam, Collection<Long> subjectIds, String questionType,
                                                      Integer difficulty, String keyword, Integer status) {
         return selectPage(pageParam, new LambdaQueryWrapperX<AiQuestionBankDO>()
-                .eqIfPresent(AiQuestionBankDO::getSubjectId, subjectId)
+                .inIfPresent(AiQuestionBankDO::getSubjectId, subjectIds)
                 .eqIfPresent(AiQuestionBankDO::getQuestionType, questionType)
                 .eqIfPresent(AiQuestionBankDO::getDifficulty, difficulty)
                 .eqIfPresent(AiQuestionBankDO::getStatus, status)

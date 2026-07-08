@@ -39,6 +39,9 @@
         </el-menu-item>
 
         <el-menu-item-group title="AI 学习中心">
+          <el-menu-item index="/smart-learning">
+            <el-icon><MagicStick /></el-icon><span>智能学习</span>
+          </el-menu-item>
           <el-menu-item index="/resources">
             <el-icon><Reading /></el-icon><span>学习资源</span>
           </el-menu-item>
@@ -65,6 +68,12 @@
           </el-menu-item>
           <el-menu-item index="/study-plan">
             <el-icon><Clock /></el-icon><span>学习计划</span>
+          </el-menu-item>
+          <el-menu-item index="/daily-report">
+            <el-icon><DataAnalysis /></el-icon><span>每日报告</span>
+          </el-menu-item>
+          <el-menu-item index="/practice">
+            <el-icon><EditPen /></el-icon><span>智能刷题</span>
           </el-menu-item>
         </el-menu-item-group>
 
@@ -216,7 +225,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/store/auth'
 import { authApi, memberApi, uploadApi } from '@/api/index'
 import { ElMessageBox, ElMessage } from 'element-plus'
-import { ArrowDown, Moon, Sunny, Bell } from '@element-plus/icons-vue'
+import { ArrowDown, Moon, Sunny, Bell, MagicStick } from '@element-plus/icons-vue'
 import { notificationApi } from '@/api/index.js'
 
 const route = useRoute()
@@ -233,35 +242,64 @@ async function fetchUnread() { try { const r = await notificationApi.unreadCount
 async function openNotices() { showNotice.value = true; try { const r = await notificationApi.page({pageNo:1,pageSize:20}); notices.value = r.data?.data?.list || [] } catch(e){} fetchUnread() }
 async function markRead(id) { await notificationApi.markRead(id); fetchUnread() }
 async function markAllRead() { await notificationApi.markAllRead(); notices.value = []; fetchUnread() }
-setInterval(fetchUnread, 60000) // poll every 60s
+setInterval(fetchUnread, 60000)
 
 const pageTitle = computed(() => {
   const map = {
-    '/profile':'我的画像','/resources':'学习资源','/questionbank':'题库','/path':'学习路径','/tutoring':'智能辅导',
+    '/smart-learning':'智能学习','/profile':'我的画像','/resources':'学习资源','/questionbank':'题库','/path':'学习路径','/tutoring':'智能辅导',
     '/evaluation':'学习评估','/checkin':'每日签到','/leaderboard':'排行榜','/friends':'好友',
     '/goals':'学习目标','/wrongbook':'错题本','/homework':'作业','/exam':'模拟考试','/dashboard':'学习看板',
-    '/study-plan':'学习计划','/activity':'动态','/school':'学校信息','/schedule':'课程表'
+    '/study-plan':'学习计划','/daily-report':'每日报告','/practice':'智能刷题',
+    '/activity':'动态','/school':'学校信息','/schedule':'课程表'
   }
   return map[route.path] || ''
 })
 
+// ====== 初始化：带调试日志 + 超时兜底 ======
+
 async function fetchMemberUser() {
-  if (!authStore.isLoggedIn) return
+  if (!authStore.isLoggedIn) { console.log('[App] fetchMemberUser: not logged in, skip'); return }
+  console.log('[App] fetchMemberUser: calling memberApi.get()...')
   try {
     const r = await memberApi.get()
+    console.log('[App] fetchMemberUser: response received, code=', r.data?.code)
     if (r.data?.data) memberUser.value = r.data.data
   } catch (e) {
-    console.error('Failed to fetch member user:', e)
+    console.error('[App] fetchMemberUser: FAILED -', e.message || e)
     authStore.logout(); router.push('/login')
   }
+  console.log('[App] fetchMemberUser: done')
 }
 
 onMounted(async () => {
+  console.log('[App] onMounted: isLoggedIn=', authStore.isLoggedIn, ' token=', !!authStore.token, ' path=', route.path)
+
   if (!authStore.isLoggedIn) {
+    console.log('[App] onMounted: no token, redirect to login')
     if (route.path !== '/login') router.push('/login')
-    authLoading.value = false; return
+    authLoading.value = false
+    console.log('[App] onMounted: authLoading set to false (no token)')
+    return
   }
-  await fetchMemberUser(); fetchUnread(); authLoading.value = false
+
+  // 超时兜底：10 秒后强制关闭 loading，避免永久卡死
+  var safetyTimer = setTimeout(function() {
+    console.warn('[App] TIMEOUT: init took too long, force closing loading')
+    authStore.logout()
+    router.push('/login')
+    authLoading.value = false
+  }, 10000)
+
+  try {
+    await fetchMemberUser()
+  } catch (e) {
+    console.error('[App] onMounted: unexpected error -', e)
+  } finally {
+    clearTimeout(safetyTimer)
+    if (authStore.isLoggedIn) fetchUnread()
+    authLoading.value = false
+    console.log('[App] onMounted: complete, authLoading=', authLoading.value, ' path=', route.path)
+  }
 })
 
 watch(() => route.path, (path, oldPath) => {

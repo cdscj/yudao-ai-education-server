@@ -9,10 +9,7 @@ import cn.iocoder.yudao.module.ai.dal.mysql.social.AiFriendMapper;
 import cn.iocoder.yudao.module.ai.dal.mysql.social.AiUserActivityMapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import static cn.iocoder.yudao.module.ai.framework.config.AiAsyncConfiguration.AI_THREAD_POOL_TASK_EXECUTOR;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +32,6 @@ public class AiUserActivityServiceImpl implements AiUserActivityService {
     private AiFriendMapper friendMapper;
 
     @Override
-    @Async(AI_THREAD_POOL_TASK_EXECUTOR)
     public void publishActivity(Long userId, Integer activityType, String content, Long refId) {
         AiUserActivityDO activity = new AiUserActivityDO();
         activity.setUserId(userId);

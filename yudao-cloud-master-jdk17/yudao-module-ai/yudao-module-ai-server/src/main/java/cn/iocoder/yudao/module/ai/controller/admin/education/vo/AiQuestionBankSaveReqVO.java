@@ -12,7 +12,8 @@ public class AiQuestionBankSaveReqVO {
     @Schema(description = "编号", example = "1")
     private Long id;
 
-    @Schema(description = "学科编号", example = "1")
+    @Schema(description = "学科编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    @NotNull(message = "学科不能为空")
     private Long subjectId;
 
     @Schema(description = "知识点标签编号JSON", example = "[1,2,3]")

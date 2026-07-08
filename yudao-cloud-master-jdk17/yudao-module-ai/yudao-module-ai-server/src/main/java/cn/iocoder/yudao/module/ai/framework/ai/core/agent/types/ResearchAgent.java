@@ -18,7 +18,7 @@ public class ResearchAgent extends ReActAgent {
     public String getAgentName() { return "研究智能体"; }
 
     @Override
-    protected String getSystemPrompt() {
+    public String getSystemPrompt() {
         return """
                 你是一个深度研究助手，擅长调研分析和资料整理。
                 要求：

@@ -49,11 +49,11 @@ public enum AiAgentTypeEnum implements IntArrayValuable {
     /** 类型名称 */
     private final String name;
 
-    public static final int[] ARRAYS = Arrays.stream(values())
-            .mapToInt(AiAgentTypeEnum::getType).toArray();
+    public static final Integer[] ARRAYS = Arrays.stream(values())
+            .map(AiAgentTypeEnum::getType).toArray(Integer[]::new);
 
     @Override
-    public int[] array() {
+    public Integer[] array() {
         return ARRAYS;
     }
 

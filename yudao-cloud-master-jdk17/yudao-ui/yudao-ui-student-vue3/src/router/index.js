@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { getAccessToken } from '@/utils/auth'
 
 const routes = [
-  { path: '/', redirect: '/profile' },
+  { path: '/', redirect: '/smart-learning' },
+  { path: '/smart-learning', name: 'SmartLearning', component: () => import('@/views/SmartLearning.vue') },
   { path: '/login', name: 'Login', component: () => import('@/views/login/Login.vue') },
   { path: '/profile', name: 'Profile', component: () => import('@/views/Profile.vue') },
   { path: '/resources', name: 'Resources', component: () => import('@/views/Resources.vue') },
@@ -22,6 +23,8 @@ const routes = [
   { path: '/dashboard', name: 'Dashboard', component: () => import('@/views/education/Dashboard.vue') },
   { path: '/study-plan', name: 'StudyPlan', component: () => import('@/views/education/StudyPlan.vue') },
   { path: '/questionbank', name: 'QuestionBank', component: () => import('@/views/education/QuestionBank.vue') },
+  { path: '/daily-report', name: 'DailyReport', component: () => import('@/views/education/DailyReport.vue') },
+  { path: '/practice', name: 'Practice', component: () => import('@/views/education/Practice.vue') },
 ]
 
 const router = createRouter({ history: createWebHistory(), routes })

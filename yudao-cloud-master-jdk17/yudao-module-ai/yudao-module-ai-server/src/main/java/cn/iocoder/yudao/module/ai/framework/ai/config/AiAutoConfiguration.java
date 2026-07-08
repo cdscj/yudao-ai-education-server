@@ -14,6 +14,7 @@ import cn.iocoder.yudao.module.ai.framework.ai.core.model.siliconflow.SiliconFlo
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.siliconflow.SiliconFlowChatModel;
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.suno.api.SunoApi;
 import cn.iocoder.yudao.module.ai.framework.ai.core.model.xinghuo.XingHuoChatModel;
+import cn.iocoder.yudao.module.ai.framework.ai.core.model.xinghuo.api.XunFeiPptApi;
 import cn.iocoder.yudao.module.ai.framework.ai.core.gateway.AiModelRouteConfig;
 import cn.iocoder.yudao.module.ai.framework.ai.core.memory.MemoryConfig;
 import cn.iocoder.yudao.module.ai.framework.ai.core.webserch.AiWebSearchClient;
@@ -79,6 +80,12 @@ public class AiAutoConfiguration {
         } catch (Exception e) {
             return ObservationRegistry.NOOP;
         }
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public io.micrometer.core.instrument.MeterRegistry meterRegistry() {
+        return new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
     }
 
     // ========== 各种 AI Client 创建 ==========
@@ -317,6 +324,24 @@ public class AiAutoConfiguration {
     @ConditionalOnProperty(value = "yudao.ai.web-search.enable", havingValue = "true")
     public AiWebSearchClient webSearchClient(YudaoAiProperties yudaoAiProperties) {
         return new AiBoChaWebSearchClient(yudaoAiProperties.getWebSearch().getApiKey());
+    }
+
+    // ========== 讯飞智能 PPT 生成 ==========
+
+    /**
+     * 讯飞智能 PPT 生成 API（复用星火 appId/secretKey）
+     *
+     * <p>启用条件：yudao.ai.xinghuo.enable=true 且 yudao.ai.xinghuo.ppt.enable=true</p>
+     */
+    @Bean
+    @ConditionalOnProperty(value = "yudao.ai.xinghuo.ppt.enable", havingValue = "true")
+    public XunFeiPptApi xunFeiPptApi(YudaoAiProperties yudaoAiProperties) {
+        YudaoAiProperties.XingHuo xingHuo = yudaoAiProperties.getXinghuo();
+        if (xingHuo == null) {
+            throw new IllegalStateException("讯飞 PPT 生成需要配置 yudao.ai.xinghuo 相关信息");
+        }
+        log.info("[PPT] 初始化讯飞智能 PPT API, appId={}", xingHuo.getAppId());
+        return new XunFeiPptApi(xingHuo.getAppId(), xingHuo.getSecretKey());
     }
 
     // ========== MCP 相关 ==========
